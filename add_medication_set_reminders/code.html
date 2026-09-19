@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"secondary":"#006b5f","on-primary":"#ffffff","surface-container-highest":"#dae2fd","primary":"#00685f","inverse-on-surface":"#eef0ff","error-container":"#ffdad6","tertiary-fixed":"#6ffbbe","outline":"#6d7a77","on-primary-container":"#f4fffc","on-secondary":"#ffffff","background":"#faf8ff","surface-dim":"#d2d9f4","primary-fixed-dim":"#6bd8cb","tertiary-fixed-dim":"#4edea3","on-surface-variant":"#3d4947","surface-tint":"#006a61","surface-container-lowest":"#ffffff","on-secondary-container":"#006f64","tertiary":"#006947","secondary-container":"#6df5e1","outline-variant":"#bcc9c6","tertiary-container":"#00855b","surface-bright":"#faf8ff","on-primary-fixed-variant":"#005049","on-primary-fixed":"#00201d","on-tertiary-container":"#f5fff6","surface-variant":"#dae2fd","surface":"#faf8ff","surface-container":"#eaedff","on-background":"#131b2e","primary-fixed":"#89f5e7","secondary-fixed":"#71f8e4","secondary-fixed-dim":"#4fdbc8","on-tertiary-fixed":"#002113","on-secondary-fixed-variant":"#005048","inverse-primary":"#6bd8cb","on-surface":"#131b2e","on-secondary-fixed":"#00201c","surface-container-high":"#e2e7ff","on-tertiary-fixed-variant":"#005236","error":"#ba1a1a","inverse-surface":"#283044","primary-container":"#008378","surface-container-low":"#f2f3ff","on-error-container":"#93000a","on-tertiary":"#ffffff","on-error":"#ffffff"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"space-xl":"2rem","margin":"1.25rem","space-sm":"0.5rem","margin-desktop":"3rem","gutter":"1rem","space-xs":"0.25rem","space-md":"1rem","space-lg":"1.5rem","margin-tablet":"2rem"},"fontFamily":{"display-lg":["Plus Jakarta Sans"],"label-md":["Inter"],"body-lg":["Inter"],"headline-sm":["Plus Jakarta Sans"],"body-md":["Inter"],"body-sm":["Inter"],"label-sm":["Inter"],"headline-md":["Plus Jakarta Sans"],"headline-lg":["Plus Jakarta Sans"],"label-lg":["Inter"]},"fontSize":{"display-lg":["36px",{"lineHeight":"44px","letterSpacing":"-0.02em","fontWeight":"700"}],"label-md":["13px",{"lineHeight":"18px","fontWeight":"600"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"500"}],"headline-sm":["18px",{"lineHeight":"24px","fontWeight":"600"}],"body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}],"body-sm":["12px",{"lineHeight":"16px","fontWeight":"400"}],"label-sm":["11px",{"lineHeight":"14px","letterSpacing":"0.04em","fontWeight":"600"}],"headline-md":["22px",{"lineHeight":"28px","letterSpacing":"-0.01em","fontWeight":"600"}],"headline-lg":["28px",{"lineHeight":"36px","letterSpacing":"-0.01em","fontWeight":"700"}],"label-lg":["15px",{"lineHeight":"20px","fontWeight":"600"}]}}}};</script></head><body class="bg-surface font-body-md text-body-md text-on-surface flex flex-col antialiased min-h-screen"><header class="fixed top-0 w-full z-50 bg-surface/85 backdrop-blur-xl pt-safe shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0 flex-1"><img alt="DoseCare App Logo" class="h-8 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1UrscSUV473BWJTPIbLNdnWLMwOPz35x0Lp9_LWjs6YNme3cFeyiK0HpK5DBK1lHZAUkm5SXlLHMgbxgFsEx8yLdNWVGuoSzklX3bbSsiB3mZgaQPYpiZrACYq0BTOtmmAOadHY_TJjkm0i-uhVgtaW7XGBoGcCqbJMj5APLJpRDzsrwML4euiiuqmMOi6VQMPNOcArJ6zlaVNsYjO_9PNki8h1SceYnTeBRkGKkB-Fe3WYfYOtA2Ndcgg"/><div class="flex flex-col min-w-0"><span class="font-headline-sm text-headline-sm text-primary leading-tight font-bold truncate">DoseCare</span><span class="font-label-sm text-label-sm text-on-surface-variant truncate">Add Dose</span></div></div><div class="flex items-center gap-space-xs flex-shrink-0"><button aria-label="Notifications" class="relative w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[24px]">notifications</span><span class="absolute top-2 right-2 w-2.5 h-2.5 bg-error rounded-full ring-2 ring-surface"></span></button><div class="w-11 h-11 flex items-center justify-center"><img alt="Profile" class="w-8 h-8 rounded-full object-cover ring-2 ring-primary/20" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAH2_jBxAxyl9DkXUeMOFWefzZf-479vDOr1XhBQg8p1grRDsncak0ayb78BduVUxn-DdMIKAWNUJsQdlWPNeQ7mwsRdta-ePuGac0lBZf2ZVoccZw2rWUSBgcueB_66J20wKyP263fkUOvNZJ8d-3m9K3jVx1hMziVi2E8G2ATkIEcEmpli12CpMk2-JywlpycdWpxEwUEWzQimk8GEluCg2FH3-ayPuCpQaQBOs-5hDwqYA7dWedb"/></div></div></div></header><main class="flex flex-col relative w-full pt-16 pb-24 bg-surface min-h-screen"><div class="flex flex-col w-full max-w-lg mx-auto px-margin pb-32 space-y-space-lg">
+<!-- Step & Guided Indicator -->
+<div class="flex flex-col gap-space-xs pt-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-label-sm text-label-sm">Step 1 of 3</span>
+<span class="font-label-md text-label-md text-on-surface-variant">Medication Profile</span>
+</div>
+<span class="font-label-sm text-label-sm text-primary font-semibold">33% Complete</span>
+</div>
+<div class="w-full bg-surface-container h-1.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full rounded-full w-1/3 transition-all duration-500"></div>
+</div>
+</div>
+<!-- OCR Instant Scanner Banner -->
+<div class="relative overflow-hidden rounded-xl bg-gradient-to-r from-primary-container to-secondary p-space-md text-on-primary shadow-sm">
+<div class="flex items-center justify-between gap-space-sm relative z-10">
+<div class="flex items-center gap-space-sm">
+<div class="w-12 h-12 rounded-xl bg-on-primary/15 backdrop-blur-md flex items-center justify-center text-on-primary shadow-inner">
+<span class="material-symbols-outlined text-[28px]">document_scanner</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm leading-tight text-on-primary">Scan Prescription</h3>
+<p class="font-body-sm text-body-sm text-on-primary-container opacity-90">Auto-fill Rx, strength &amp; instructions in 2s</p>
+</div>
+</div>
+<button class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg bg-on-primary text-primary font-label-md text-label-md shadow hover:bg-surface-bright active:scale-95 transition-all" id="scanBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+<span>Scan Bottle</span>
+</button>
+</div>
+<div class="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-on-primary/10 pointer-events-none blur-xl"></div>
+</div>
+<!-- Medication Identification Form -->
+<section class="flex flex-col gap-space-md p-space-md rounded-xl bg-surface-container-low shadow-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">vaccines</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Medication Identity</h2>
+</div>
+<!-- Drug Name Input -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface-variant flex justify-between items-center" for="medName">
+<span>Medication Name</span>
+<span class="font-body-sm text-body-sm text-primary cursor-pointer hover:underline" id="suggestTrigger">Recent: Amoxicillin</span>
+</label>
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-3.5 text-outline text-[20px] pointer-events-none">search</span>
+<input class="w-full pl-11 pr-4 py-3 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md placeholder-outline focus:outline-none focus:bg-surface-container-lowest shadow-sm transition-all" id="medName" placeholder="e.g., Amoxicillin 500mg" type="text" value="Amoxicillin"/>
+</div>
+</div>
+<!-- Strength and Unit Combined -->
+<div class="grid grid-cols-5 gap-space-sm">
+<div class="col-span-3 flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface-variant" for="strengthInput">Dosage &amp; Strength</label>
+<div class="relative flex items-center">
+<input class="w-full px-3.5 py-3 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none shadow-sm" id="strengthInput" placeholder="500" type="number" value="500"/>
+</div>
+</div>
+<div class="col-span-2 flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface-variant" for="unitSelect">Unit</label>
+<div class="relative flex items-center">
+<select class="w-full pl-3 pr-8 py-3 rounded-lg bg-surface-container-lowest text-on-surface font-label-md text-label-md focus:outline-none shadow-sm appearance-none" id="unitSelect">
+<option selected="" value="mg">mg</option>
+<option value="mcg">mcg</option>
+<option value="ml">ml</option>
+<option value="drops">drops</option>
+<option value="puffs">puffs</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 text-outline pointer-events-none text-[20px]">expand_more</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Live Pill Visualizer & Customizer Card -->
+<section class="flex flex-col gap-space-md p-space-md rounded-xl bg-surface-container-low shadow-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">palette</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Pill Appearance</h2>
+</div>
+<span class="font-label-sm text-label-sm text-secondary font-medium">Interactive Preview</span>
+</div>
+<!-- Live 3D Simulation Slate -->
+<div class="relative overflow-hidden w-full rounded-xl bg-gradient-to-b from-surface-container to-surface-container-high p-5 flex flex-col items-center justify-center text-center shadow-inner">
+<div class="relative flex items-center justify-center my-2">
+<!-- Visual Pill Container -->
+<div class="w-32 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 transform hover:scale-105 bg-secondary-container text-on-secondary-container" id="pillGraphic">
+<div class="w-full flex items-center justify-around px-3 pointer-events-none select-none">
+<span class="font-label-md text-label-md font-bold tracking-wider opacity-85" id="pillTextCode">AMOX 500</span>
+<div class="w-0.5 h-6 bg-current opacity-30 rounded-full"></div>
+<span class="material-symbols-outlined text-[20px] opacity-80" id="pillIconDisplay">medication</span>
+</div>
+</div>
+</div>
+<p class="mt-3 font-label-sm text-label-sm text-on-surface-variant" id="pillCaption">Capsule • Teal • 500 mg</p>
+</div>
+<!-- Pill Shape Selector Grid -->
+<div class="flex flex-col gap-2">
+<label class="font-label-md text-label-md text-on-surface-variant">Select Form Factor</label>
+<div class="grid grid-cols-3 sm:grid-cols-6 gap-2" id="shapeSelectorGroup">
+<button class="shape-btn active flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-lowest text-primary shadow-sm hover:bg-surface-container transition-all" data-icon="medication" data-shape="capsule" type="button">
+<span class="material-symbols-outlined text-[24px]">medication</span>
+<span class="font-label-sm text-label-sm mt-1">Capsule</span>
+</button>
+<button class="shape-btn flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-lowest text-on-surface-variant shadow-sm hover:bg-surface-container transition-all" data-icon="circle" data-shape="round" type="button">
+<span class="material-symbols-outlined text-[24px]">circle</span>
+<span class="font-label-sm text-label-sm mt-1">Round</span>
+</button>
+<button class="shape-btn flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-lowest text-on-surface-variant shadow-sm hover:bg-surface-container transition-all" data-icon="egg" data-shape="oval" type="button">
+<span class="material-symbols-outlined text-[24px]">egg</span>
+<span class="font-label-sm text-label-sm mt-1">Oval</span>
+</button>
+<button class="shape-btn flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-lowest text-on-surface-variant shadow-sm hover:bg-surface-container transition-all" data-icon="water_drop" data-shape="liquid" type="button">
+<span class="material-symbols-outlined text-[24px]">water_drop</span>
+<span class="font-label-sm text-label-sm mt-1">Liquid</span>
+</button>
+<button class="shape-btn flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-lowest text-on-surface-variant shadow-sm hover:bg-surface-container transition-all" data-icon="air" data-shape="inhaler" type="button">
+<span class="material-symbols-outlined text-[24px]">air</span>
+<span class="font-label-sm text-label-sm mt-1">Inhaler</span>
+</button>
+<button class="shape-btn flex flex-col items-center justify-center py-2.5 px-2 rounded-lg bg-surface-container-lowest text-on-surface-variant shadow-sm hover:bg-surface-container transition-all" data-icon="syringe" data-shape="injection" type="button">
+<span class="material-symbols-outlined text-[24px]">syringe</span>
+<span class="font-label-sm text-label-sm mt-1">Shot</span>
+</button>
+</div>
+</div>
+<!-- Pill Color Swatches -->
+<div class="flex flex-col gap-2">
+<label class="font-label-md text-label-md text-on-surface-variant">Color Tint</label>
+<div class="flex items-center justify-between px-1" id="colorSelectorGroup">
+<button class="color-btn active w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center shadow-md" data-bg="bg-secondary-container" data-color="teal" data-text="text-on-secondary-container" type="button">
+<span class="material-symbols-outlined text-on-secondary-container text-[18px]">check</span>
+</button>
+<button class="color-btn w-10 h-10 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-md" data-bg="bg-surface-container-lowest" data-color="white" data-text="text-on-surface" type="button">
+<span class="material-symbols-outlined text-on-surface text-[18px] opacity-0">check</span>
+</button>
+<button class="color-btn w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center shadow-md" data-bg="bg-surface-container-highest" data-color="blue" data-text="text-on-surface" type="button">
+<span class="material-symbols-outlined text-on-surface text-[18px] opacity-0">check</span>
+</button>
+<button class="color-btn w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center shadow-md" data-bg="bg-primary-fixed" data-color="yellow" data-text="text-on-primary-fixed" type="button">
+<span class="material-symbols-outlined text-on-primary-fixed text-[18px] opacity-0">check</span>
+</button>
+<button class="color-btn w-10 h-10 rounded-full bg-error-container flex items-center justify-center shadow-md" data-bg="bg-error-container" data-color="pink" data-text="text-on-error-container" type="button">
+<span class="material-symbols-outlined text-on-error-container text-[18px] opacity-0">check</span>
+</button>
+<button class="color-btn w-10 h-10 rounded-full bg-secondary-fixed-dim flex items-center justify-center shadow-md" data-bg="bg-secondary-fixed-dim" data-color="orange" data-text="text-on-secondary-fixed" type="button">
+<span class="material-symbols-outlined text-on-secondary-fixed text-[18px] opacity-0">check</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Medication Schedule & Alarms -->
+<section class="flex flex-col gap-space-md p-space-md rounded-xl bg-surface-container-low shadow-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">alarm</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Frequency &amp; Reminders</h2>
+</div>
+<button class="flex items-center gap-1 font-label-md text-label-md text-primary hover:underline" id="addDoseTime" type="button">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+<span>Add Time</span>
+</button>
+</div>
+<!-- Frequency Pills -->
+<div class="flex flex-wrap gap-2">
+<button class="freq-btn active px-3.5 py-2 rounded-full bg-primary text-on-primary font-label-sm text-label-sm shadow-sm transition-colors" type="button">Every day</button>
+<button class="freq-btn px-3.5 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-sm text-label-sm shadow-sm transition-colors" type="button">Specific days</button>
+<button class="freq-btn px-3.5 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-sm text-label-sm shadow-sm transition-colors" type="button">Every 2 days</button>
+<button class="freq-btn px-3.5 py-2 rounded-full bg-surface-container-lowest text-on-surface-variant font-label-sm text-label-sm shadow-sm transition-colors" type="button">As needed (PRN)</button>
+</div>
+<!-- Reminder Slots List -->
+<div class="flex flex-col gap-space-sm" id="doseTimeList">
+<!-- Morning Dose -->
+<div class="dose-item flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest shadow-sm">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">wb_sunny</span>
+</div>
+<div>
+<div class="font-headline-sm text-headline-sm text-on-surface">08:00 AM</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">Morning • 1 Capsule (500mg)</div>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-9 h-9 flex items-center justify-center rounded-lg text-outline hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">schedule</span>
+</button>
+<button class="delete-dose w-9 h-9 flex items-center justify-center rounded-lg text-outline hover:text-error transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+</div>
+<!-- Evening Dose -->
+<div class="dose-item flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest shadow-sm">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">bedtime</span>
+</div>
+<div>
+<div class="font-headline-sm text-headline-sm text-on-surface">08:00 PM</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">Evening • 1 Capsule (500mg)</div>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="w-9 h-9 flex items-center justify-center rounded-lg text-outline hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">schedule</span>
+</button>
+<button class="delete-dose w-9 h-9 flex items-center justify-center rounded-lg text-outline hover:text-error transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Dietary Constraints -->
+<div class="flex flex-col gap-2 pt-1">
+<label class="font-label-md text-label-md text-on-surface-variant flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-outline">restaurant</span>
+<span>Food Intake Protocol</span>
+</label>
+<div class="grid grid-cols-2 gap-2" id="foodInstructionGroup">
+<button class="food-chip active flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-primary-container text-on-primary font-label-md text-label-md shadow-sm transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">restaurant_menu</span>
+<span>With Food</span>
+</button>
+<button class="food-chip flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-surface-container-lowest text-on-surface font-label-md text-label-md shadow-sm transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">no_meals</span>
+<span>Before Food</span>
+</button>
+<button class="food-chip flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-surface-container-lowest text-on-surface font-label-md text-label-md shadow-sm transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">done_all</span>
+<span>After Food</span>
+</button>
+<button class="food-chip flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-surface-container-lowest text-on-surface font-label-md text-label-md shadow-sm transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">water_full</span>
+<span>Empty Stomach</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Bottle Stock & Pharmacy Refill Tracking -->
+<section class="flex flex-col gap-space-md p-space-md rounded-xl bg-surface-container-low shadow-sm">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">inventory_2</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Refills &amp; Inventory</h2>
+</div>
+<!-- Current Stock Count & Safe Level Stepper -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-sm">
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface-variant" for="currentBottleCount">Pills in Bottle</label>
+<div class="relative flex items-center">
+<input class="w-full px-3.5 py-3 rounded-lg bg-surface-container-lowest text-on-surface font-headline-sm text-headline-sm focus:outline-none shadow-sm" id="currentBottleCount" type="number" value="30"/>
+<span class="absolute right-3.5 font-label-sm text-label-sm text-outline">Units left</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface-variant">Alert Threshold</label>
+<div class="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-container-lowest shadow-sm">
+<button class="w-9 h-9 rounded-md bg-surface-container flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-colors" id="decrementAlert" type="button">
+<span class="material-symbols-outlined text-[20px]">remove</span>
+</button>
+<div class="flex flex-col items-center">
+<span class="font-headline-sm text-headline-sm text-on-surface" id="alertCountLabel">5</span>
+<span class="font-label-sm text-label-sm text-outline">pills left (~7d)</span>
+</div>
+<button class="w-9 h-9 rounded-md bg-surface-container flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-colors" id="incrementAlert" type="button">
+<span class="material-symbols-outlined text-[20px]">add</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Pharmacy Refill Connector -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface-variant flex items-center justify-between" for="pharmacySelect">
+<span>Linked Pharmacy</span>
+<span class="font-label-sm text-label-sm text-primary font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">local_shipping</span>
+<span>1-Click Refill</span>
+</span>
+</label>
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-3.5 text-outline text-[20px] pointer-events-none">local_pharmacy</span>
+<select class="w-full pl-11 pr-8 py-3 rounded-lg bg-surface-container-lowest text-on-surface font-body-md text-body-md focus:outline-none shadow-sm appearance-none" id="pharmacySelect">
+<option selected="" value="cvs">CVS Pharmacy - 4th &amp; Main (#4821)</option>
+<option value="walgreens">Walgreens Pharmacy - Market St (#1024)</option>
+<option value="express">Express Scripts Home Delivery</option>
+<option value="kaiser">Kaiser Permanente Central Pharmacy</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 text-outline pointer-events-none text-[20px]">arrow_drop_down</span>
+</div>
+</div>
+<!-- Refill Auto-Order Banner -->
+<div class="p-3 rounded-lg bg-surface-container flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<span class="material-symbols-outlined text-secondary text-[22px]">notifications_active</span>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface">Auto-request RX refill</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Notify doctor when down to 5 doses</span>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" id="autoRefillToggle" type="checkbox"/>
+<div class="w-11 h-6 bg-outline-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</section>
+<!-- Sticky Confirmation CTA Container -->
+<div class="fixed bottom-20 inset-x-0 px-margin max-w-lg mx-auto z-40">
+<div class="p-2 rounded-2xl bg-surface/85 backdrop-blur-xl shadow-lg">
+<button class="w-full h-13 py-3.5 px-6 rounded-xl bg-primary text-on-primary font-label-lg text-label-lg font-bold flex items-center justify-center gap-2 shadow-md hover:bg-primary-container active:scale-[0.98] transition-all" id="saveMedBtn" type="button">
+<span class="material-symbols-outlined text-[22px]">alarm_on</span>
+<span>Save &amp; Set Reminders</span>
+</button>
+</div>
+</div>
+<!-- Notification Feedback Toast -->
+<div class="fixed top-20 inset-x-4 max-w-sm mx-auto p-4 rounded-xl bg-inverse-surface text-inverse-on-surface shadow-2xl flex items-center gap-3 transform -translate-y-24 opacity-0 pointer-events-none transition-all duration-300 z-50" id="toastMessage">
+<span class="material-symbols-outlined text-tertiary-fixed text-[24px]">check_circle</span>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md font-semibold">Medication Added!</span>
+<span class="font-body-sm text-body-sm text-inverse-on-surface/80">Amoxicillin 500mg schedule is active.</span>
+</div>
+</div>
+</div>
+<script>
+  (function() {
+    const medInput = document.getElementById('medName');
+    const strengthInput = document.getElementById('strengthInput');
+    const unitSelect = document.getElementById('unitSelect');
+    const pillGraphic = document.getElementById('pillGraphic');
+    const pillTextCode = document.getElementById('pillTextCode');
+    const pillIconDisplay = document.getElementById('pillIconDisplay');
+    const pillCaption = document.getElementById('pillCaption');
+
+    let currentShape = 'capsule';
+    let currentColor = 'teal';
+    let alertThreshold = 5;
+
+    // Helper: update live visual preview
+    function updatePillPreview() {
+      const name = medInput.value.trim().toUpperCase().slice(0, 4) || 'MED';
+      const strength = strengthInput.value || '100';
+      const unit = unitSelect.value || 'mg';
+
+      pillTextCode.textContent = `${name} ${strength}`;
+      pillCaption.textContent = `${currentShape.charAt(0).toUpperCase() + currentShape.slice(1)} • ${currentColor.charAt(0).toUpperCase() + currentColor.slice(1)} • ${strength} ${unit}`;
+
+      // Adjust shape visual styles
+      pillGraphic.className = pillGraphic.className.replace(/rounded-[a-z0-9]+/g, '');
+      if (currentShape === 'capsule') {
+        pillGraphic.classList.add('rounded-full', 'w-32', 'h-14');
+      } else if (currentShape === 'round') {
+        pillGraphic.classList.add('rounded-full', 'w-20', 'h-20');
+      } else if (currentShape === 'oval') {
+        pillGraphic.classList.add('rounded-3xl', 'w-28', 'h-16');
+      } else {
+        pillGraphic.classList.add('rounded-2xl', 'w-24', 'h-16');
+      }
+    }
+
+    medInput.addEventListener('input', updatePillPreview);
+    strengthInput.addEventListener('input', updatePillPreview);
+    unitSelect.addEventListener('change', updatePillPreview);
+
+    // Shape buttons click handling
+    const shapeBtns = document.querySelectorAll('.shape-btn');
+    shapeBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        shapeBtns.forEach(b => {
+          b.classList.remove('bg-primary', 'text-on-primary');
+          b.classList.add('bg-surface-container-lowest', 'text-on-surface-variant');
+        });
+        btn.classList.remove('bg-surface-container-lowest', 'text-on-surface-variant');
+        btn.classList.add('bg-primary', 'text-on-primary');
+
+        currentShape = btn.dataset.shape;
+        pillIconDisplay.textContent = btn.dataset.icon;
+        updatePillPreview();
+      });
+    });
+
+    // Color buttons click handling
+    const colorBtns = document.querySelectorAll('.color-btn');
+    colorBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        colorBtns.forEach(b => {
+          b.querySelector('span').classList.add('opacity-0');
+        });
+        btn.querySelector('span').classList.remove('opacity-0');
+
+        currentColor = btn.dataset.color;
+        const targetBg = btn.dataset.bg;
+        const targetText = btn.dataset.text;
+
+        // Strip previous background & text
+        pillGraphic.className = pillGraphic.className
+          .replace(/bg-\S+/g, '')
+          .replace(/text-\S+/g, '');
+
+        pillGraphic.classList.add(targetBg, targetText);
+        updatePillPreview();
+      });
+    });
+
+    // Frequency button toggles
+    const freqBtns = document.querySelectorAll('.freq-btn');
+    freqBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        freqBtns.forEach(b => {
+          b.classList.remove('bg-primary', 'text-on-primary');
+          b.classList.add('bg-surface-container-lowest', 'text-on-surface-variant');
+        });
+        btn.classList.remove('bg-surface-container-lowest', 'text-on-surface-variant');
+        btn.classList.add('bg-primary', 'text-on-primary');
+      });
+    });
+
+    // Food instruction chips
+    const foodChips = document.querySelectorAll('.food-chip');
+    foodChips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        foodChips.forEach(c => {
+          c.classList.remove('bg-primary-container', 'text-on-primary');
+          c.classList.add('bg-surface-container-lowest', 'text-on-surface');
+        });
+        chip.classList.remove('bg-surface-container-lowest', 'text-on-surface');
+        chip.classList.add('bg-primary-container', 'text-on-primary');
+      });
+    });
+
+    // Stepper control for alert threshold
+    const decBtn = document.getElementById('decrementAlert');
+    const incBtn = document.getElementById('incrementAlert');
+    const alertLabel = document.getElementById('alertCountLabel');
+
+    decBtn.addEventListener('click', () => {
+      if (alertThreshold > 1) {
+        alertThreshold -= 1;
+        alertLabel.textContent = alertThreshold;
+      }
+    });
+
+    incBtn.addEventListener('click', () => {
+      alertThreshold += 1;
+      alertLabel.textContent = alertThreshold;
+    });
+
+    // Quick remove dose time slot
+    document.querySelectorAll('.delete-dose').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const item = e.target.closest('.dose-item');
+        if (item) {
+          item.remove();
+        }
+      });
+    });
+
+    // Add slot interaction
+    const addDoseBtn = document.getElementById('addDoseTime');
+    const doseList = document.getElementById('doseTimeList');
+    addDoseBtn.addEventListener('click', () => {
+      const newDose = document.createElement('div');
+      newDose.className = 'dose-item flex items-center justify-between p-3.5 rounded-xl bg-surface-container-lowest shadow-sm animate-pulse';
+      newDose.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
+            <span class="material-symbols-outlined text-[20px]">light_mode</span>
+          </div>
+          <div>
+            <div class="font-headline-sm text-headline-sm text-on-surface">01:00 PM</div>
+            <div class="font-body-sm text-body-sm text-on-surface-variant">Afternoon • 1 Pill</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" class="w-9 h-9 flex items-center justify-center rounded-lg text-outline hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[20px]">schedule</span>
+          </button>
+          <button type="button" class="delete-dose w-9 h-9 flex items-center justify-center rounded-lg text-outline hover:text-error transition-colors">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+      `;
+      doseList.appendChild(newDose);
+      setTimeout(() => newDose.classList.remove('animate-pulse'), 400);
+
+      newDose.querySelector('.delete-dose').addEventListener('click', () => {
+        newDose.remove();
+      });
+    });
+
+    // Scan Banner Action Mock
+    const scanBtn = document.getElementById('scanBtn');
+    scanBtn.addEventListener('click', () => {
+      scanBtn.classList.add('animate-pulse');
+      setTimeout(() => {
+        medInput.value = 'Lisinopril';
+        strengthInput.value = '20';
+        unitSelect.value = 'mg';
+        updatePillPreview();
+        scanBtn.classList.remove('animate-pulse');
+      }, 600);
+    });
+
+    // Save Medication feedback
+    const saveBtn = document.getElementById('saveMedBtn');
+    const toast = document.getElementById('toastMessage');
+
+    saveBtn.addEventListener('click', () => {
+      toast.classList.remove('-translate-y-24', 'opacity-0', 'pointer-events-none');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.add('-translate-y-24', 'opacity-0', 'pointer-events-none');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 2500);
+    });
+
+    // Initial sync
+    updatePillPreview();
+  })();
+</script></main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-4px_16px_rgba(0,0,0,0.03)]" data-active-classes="text-primary font-semibold"><div class="flex justify-around items-center h-20 px-space-xs max-w-lg mx-auto"><a class="flex flex-col items-center justify-center gap-1 min-w-[56px] h-14 text-on-surface-variant hover:text-primary transition-colors" data-path="today" href="#"><span class="material-symbols-outlined text-[24px]">calendar_today</span><span class="font-label-sm text-label-sm">Today</span></a><a class="flex flex-col items-center justify-center gap-1 min-w-[56px] h-14 text-on-surface-variant hover:text-primary transition-colors" data-path="medications" href="#"><span class="material-symbols-outlined text-[24px]">medication</span><span class="font-label-sm text-label-sm">Meds</span></a><a aria-current="page" class="flex flex-col items-center justify-center min-w-[56px] h-14 -mt-5 group text-primary font-semibold" data-path="add-dose" href="#"><div class="w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-[0_4px_12px_rgba(0,104,95,0.3)] group-hover:scale-105 transition-transform"><span class="material-symbols-outlined text-[26px]">add</span></div><span class="font-label-sm text-label-sm text-on-surface-variant mt-1 group-hover:text-primary transition-colors">Add</span></a><a class="flex flex-col items-center justify-center gap-1 min-w-[56px] h-14 text-on-surface-variant hover:text-primary transition-colors" data-path="insights" href="#"><span class="material-symbols-outlined text-[24px]">bar_chart</span><span class="font-label-sm text-label-sm">Insights</span></a></div></nav></body></html>
