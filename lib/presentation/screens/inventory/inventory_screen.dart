@@ -49,8 +49,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
     final query = _searchController.text.trim().toLowerCase();
     return _controller.medicines.where((m) {
       final matchesSearch = m.name.toLowerCase().contains(query) ||
-          m.brandName.toLowerCase().contains(query) ||
-          m.rxNumber.toLowerCase().contains(query);
+          m.brandName.toLowerCase().contains(query);
 
       if (!matchesSearch) return false;
 
@@ -224,161 +223,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
             else
               ...filtered.map((med) => _buildMedicationCard(med)),
 
-            const SizedBox(height: 16),
-
-            // 5. Add Your Pharmacy Card
-            _buildAddPharmacyCard(),
-
             const SizedBox(height: 32),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildAddPharmacyCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.local_pharmacy_rounded, color: AppColors.primary, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Your Pharmacy',
-                      style: AppTypography.headlineSm(color: AppColors.onSurface).copyWith(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'Link a pharmacy for refill requests',
-                      style: AppTypography.labelSm(color: AppColors.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _showAddPharmacyModal(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(0, 44),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.add_rounded, size: 20),
-              label: const Text('Add Your Pharmacy'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddPharmacyModal() {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final addressCtrl = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Add Your Pharmacy',
-                    style: AppTypography.headlineSm(color: AppColors.onSurface).copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text('Pharmacy Name', style: AppTypography.labelMd(color: AppColors.onSurfaceVariant)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(hintText: 'e.g. Apollo Pharmacy, MedPlus...'),
-              ),
-              const SizedBox(height: 12),
-              Text('Phone Number', style: AppTypography.labelMd(color: AppColors.onSurfaceVariant)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: phoneCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(hintText: 'e.g. +91 98765 43210'),
-              ),
-              const SizedBox(height: 12),
-              Text('Address', style: AppTypography.labelMd(color: AppColors.onSurfaceVariant)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: addressCtrl,
-                maxLines: 2,
-                decoration: const InputDecoration(hintText: 'Pharmacy address or branch'),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    _showRefillToast('Pharmacy "${nameCtrl.text.trim().isNotEmpty ? nameCtrl.text.trim() : 'Pharmacy'}" saved ✓');
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    minimumSize: const Size(0, 48),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Save Pharmacy', style: TextStyle(color: Colors.white)),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -489,7 +337,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ElevatedButton.icon(
                       onPressed: () async {
                         await _controller.bulkReorderLowStock();
-                        _showRefillToast('Refill requests saved. Contact your pharmacy to complete them.');
+                        _showRefillToast('Added 30 doses to each low-stock medication.');
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.error,
@@ -685,29 +533,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
           const SizedBox(height: 10),
 
-          // Pharmacy & Actions
+          // Stock actions
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(
-                child: Row(
-                  children: [
-                    const Icon(Icons.local_pharmacy_outlined, size: 15, color: AppColors.outline),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        '${med.pharmacyName} (Rx #${med.rxNumber})',
-                        style: AppTypography.bodySm(color: AppColors.outline).copyWith(fontSize: 11),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
               Text(
-                '${med.refillsAvailable} Refill Avail.',
-                style: AppTypography.labelSm(color: AppColors.primary).copyWith(fontWeight: FontWeight.w600),
+                'Update stock after purchasing medication.',
+                style: AppTypography.bodySm(color: AppColors.outline).copyWith(fontSize: 11),
               ),
             ],
           ),
@@ -723,7 +555,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       final unit = (med.type == 'liquid' || med.type == 'inhaler' || med.type == 'injection')
                           ? 'doses'
                           : 'pills';
-                      _showRefillToast('Refill request for ${med.name} sent to ${med.pharmacyName} ✓ (+30 $unit)');
+                      _showRefillToast('Added 30 $unit to ${med.name}.');
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -732,7 +564,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     minimumSize: const Size(0, 42),
                   ),
                   icon: const Icon(Icons.sync_rounded, size: 18),
-                  label: const Text('Request Refill'),
+                  label: const Text('Add 30 doses'),
                 ),
               ),
               const SizedBox(width: 10),

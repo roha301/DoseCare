@@ -32,27 +32,11 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   String _selectedColor = 'teal';
   String _selectedFood = 'With Food';
   String _selectedFrequency = 'Every day';
-  final List<String> _pharmacyList = [
-    'None (No Linked Pharmacy)',
-    'Apollo Pharmacy',
-    'MedPlus Pharmacy',
-  ];
-  String _selectedPharmacy = 'None (No Linked Pharmacy)';
-  bool _autoRefillEnabled = true;
-
+  // A practical starting schedule that can be edited, removed, or expanded.
+  // PRN medicines still deliberately create no scheduled reminders.
   final List<Map<String, dynamic>> _reminderSlots = [
-    {
-      'label': 'Morning',
-      'time': '08:00',
-      'icon': Icons.wb_sunny_rounded,
-      'color': AppColors.primary,
-    },
-    {
-      'label': 'Evening',
-      'time': '20:00',
-      'icon': Icons.bedtime_rounded,
-      'color': AppColors.secondary,
-    },
+    {'label': 'Morning', 'time': '08:00', 'icon': Icons.wb_sunny_rounded, 'color': AppColors.primary},
+    {'label': 'Evening', 'time': '20:00', 'icon': Icons.bedtime_rounded, 'color': AppColors.secondary},
   ];
 
   final ImagePicker _picker = ImagePicker();
@@ -217,20 +201,33 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       remainingQuantity: totalQty,
       lowStockThreshold: threshold,
       foodInstruction: _selectedFood,
-      pharmacyName: _selectedPharmacy == 'None (No Linked Pharmacy)' ? 'Direct Purchase' : _selectedPharmacy.split(' - ').first,
-      rxNumber: 'RX-${DateTime.now().millisecondsSinceEpoch % 1000000}',
     );
 
-    // 3. Save medicine with schedules for each reminder slot
-    final medId = await AppController.instance.addMedicineWithSchedule(
-      medicine: newMedicine,
-      timeOfDay: _reminderSlots.first['time'].toString(),
-      periodLabel: _reminderSlots.first['label'].toString(),
-      frequencyType: _selectedFrequency == 'As needed' ? 'as_needed' : _selectedFrequency == 'Alternate days' ? 'alternate' : 'daily',
-    );
+    final isPrn = _selectedFrequency == 'As needed (PRN)';
+    if (!isPrn && _reminderSlots.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add at least one reminder time, or choose As needed (PRN).')),
+      );
+      return;
+    }
+    final frequencyType = isPrn
+        ? 'as_needed'
+        : _selectedFrequency == 'Every 2 days'
+            ? 'alternate'
+            : 'daily';
+
+    // PRN doses are logged manually and deliberately do not create an alarm.
+    final medId = isPrn
+        ? await AppController.instance.addMedicineWithoutSchedule(newMedicine)
+        : await AppController.instance.addMedicineWithSchedule(
+            medicine: newMedicine,
+            timeOfDay: _reminderSlots.first['time'].toString(),
+            periodLabel: _reminderSlots.first['label'].toString(),
+            frequencyType: frequencyType,
+          );
 
     // Save additional slots if more than 1
-    if (_reminderSlots.length > 1) {
+    if (!isPrn && _reminderSlots.length > 1) {
       for (int i = 1; i < _reminderSlots.length; i++) {
         final slot = _reminderSlots[i];
         final rawTime = slot['time'].toString();
@@ -240,7 +237,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
             timeOfDay: rawTime,
             periodLabel: slot['label'].toString(),
             doseCount: 1,
-            frequencyType: _selectedFrequency == 'As needed' ? 'as_needed' : _selectedFrequency == 'Alternate days' ? 'alternate' : 'daily',
+            frequencyType: frequencyType,
           ),
         );
       }
@@ -862,6 +859,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
 
   Widget _buildScheduleSection() {
     final frequencies = ['Every day', 'Specific days', 'Every 2 days', 'As needed (PRN)'];
+    final isPrn = _selectedFrequency == 'As needed (PRN)';
     final foodChips = [
       {'label': 'With Food', 'icon': Icons.restaurant_menu_rounded},
       {'label': 'Before Food', 'icon': Icons.no_meals_rounded},
@@ -897,40 +895,46 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              InkWell(
-                onTap: () async {
-                  final picked = await showTimePicker(
-                    context: context,
-                    initialTime: const TimeOfDay(hour: 12, minute: 0),
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      final period = _periodForHour(picked.hour);
-                      _reminderSlots.add({
-                        'label': period,
-                        'time': _storeTime(picked),
-                        'icon': picked.hour < 17 ? Icons.wb_sunny_rounded : Icons.bedtime_rounded,
-                        'color': AppColors.primary,
+              if (isPrn)
+                Text(
+                  'Log from Today',
+                  style: AppTypography.labelMd(color: AppColors.secondary).copyWith(fontWeight: FontWeight.bold),
+                )
+              else
+                InkWell(
+                  onTap: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: const TimeOfDay(hour: 12, minute: 0),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        final period = _periodForHour(picked.hour);
+                        _reminderSlots.add({
+                          'label': period,
+                          'time': _storeTime(picked),
+                          'icon': picked.hour < 17 ? Icons.wb_sunny_rounded : Icons.bedtime_rounded,
+                          'color': AppColors.primary,
+                        });
                       });
-                    });
-                  }
-                },
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary, size: 18),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Add Time',
-                        style: AppTypography.labelMd(color: AppColors.primary).copyWith(fontWeight: FontWeight.bold),
-                      ),
-                    ],
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary, size: 18),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Add Time',
+                          style: AppTypography.labelMd(color: AppColors.primary).copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -973,6 +977,21 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
           ),
           const SizedBox(height: 16),
 
+          if (isPrn) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.secondaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'PRN medicines have no preset reminder. Use “Log PRN” on Today whenever you take a dose.',
+                style: AppTypography.bodySm(color: AppColors.onSecondaryContainer),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ] else ...[
           // 2. Reminder Slots List
           ..._reminderSlots.asMap().entries.map((entry) {
             final idx = entry.key;
@@ -1062,6 +1081,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
               ),
             );
           }),
+          ],
           const SizedBox(height: 12),
 
           // 3. Food Intake Protocol
@@ -1104,89 +1124,6 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                 ),
               );
             }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddCustomPharmacyDialog() {
-    final nameCtrl = TextEditingController();
-    final phoneCtrl = TextEditingController();
-    final addressCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.local_pharmacy_rounded, color: AppColors.primary),
-            const SizedBox(width: 8),
-            Text('Add Your Pharmacy', style: AppTypography.headlineSm(color: AppColors.onSurface)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Enter your preferred or local pharmacy details:', style: AppTypography.bodySm(color: AppColors.onSurfaceVariant)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Pharmacy Name *',
-                hintText: 'e.g. Apollo Pharmacy, Care Chemist',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Phone (Optional)',
-                hintText: 'e.g. +91 98765 43210',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: addressCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Address / Branch (Optional)',
-                hintText: 'Location or street',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              final name = nameCtrl.text.trim();
-              if (name.isNotEmpty) {
-                setState(() {
-                  if (!_pharmacyList.contains(name)) {
-                    _pharmacyList.add(name);
-                  }
-                  _selectedPharmacy = name;
-                });
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Pharmacy "$name" linked successfully!'),
-                    backgroundColor: AppColors.primary,
-                  ),
-                );
-              }
-            },
-            child: const Text('Save & Select'),
           ),
         ],
       ),
@@ -1353,108 +1290,6 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 16),
-
-          // Pharmacy Refill Connector
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            runSpacing: 4,
-            children: [
-              Text('Linked Pharmacy', style: AppTypography.labelMd(color: AppColors.onSurfaceVariant)),
-              TextButton.icon(
-                onPressed: _showAddCustomPharmacyDialog,
-                icon: const Icon(Icons.add_rounded, size: 16, color: AppColors.primary),
-                label: Text(
-                  'Add Your Pharmacy',
-                  style: AppTypography.labelSm(color: AppColors.primary).copyWith(fontWeight: FontWeight.bold),
-                ),
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          DropdownButtonFormField<String>(
-            key: ValueKey(_selectedPharmacy),
-            initialValue: _pharmacyList.contains(_selectedPharmacy) ? _selectedPharmacy : _pharmacyList.first,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.local_pharmacy_rounded, color: AppColors.outline),
-            ),
-            items: [
-              ..._pharmacyList.map((p) {
-                return DropdownMenuItem(
-                  value: p,
-                  child: Text(p, style: AppTypography.bodyMd(color: AppColors.onSurface), overflow: TextOverflow.ellipsis),
-                );
-              }),
-              const DropdownMenuItem(
-                value: '__ADD_NEW__',
-                child: Row(
-                  children: [
-                    Icon(Icons.add_circle_outline_rounded, size: 18, color: AppColors.primary),
-                    SizedBox(width: 8),
-                    Text('+ Add Your Pharmacy...', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-            ],
-            onChanged: (val) {
-              if (val == '__ADD_NEW__') {
-                _showAddCustomPharmacyDialog();
-              } else if (val != null) {
-                setState(() => _selectedPharmacy = val);
-              }
-            },
-          ),
-          const SizedBox(height: 14),
-
-          // Refill Auto-Order Banner
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainer,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.secondary.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.notifications_active_rounded, color: AppColors.secondary, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Auto-request RX refill',
-                        style: AppTypography.labelMd(color: AppColors.onSurface).copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        'Notify doctor when down to ${_thresholdController.text} doses',
-                        style: AppTypography.bodySm(color: AppColors.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-                Switch(
-                  value: _autoRefillEnabled,
-                  activeTrackColor: AppColors.primary,
-                  activeThumbColor: Colors.white,
-                  onChanged: (val) => setState(() => _autoRefillEnabled = val),
-                ),
-              ],
-            ),
           ),
         ],
       ),

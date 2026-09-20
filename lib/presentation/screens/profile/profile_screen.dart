@@ -26,6 +26,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _caregiverSync = true;
   bool _appLockEnabled = false;
   String _alarmSound = 'Serene Bell';
+  String? _deviceAlarmSoundUri;
   int _snoozeDuration = 10;
 
   String _bloodGroup = '';
@@ -53,6 +54,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _bloodGroup = prefs.getString('patient_blood_group') ?? '';
       _doctorName = prefs.getString('patient_doctor_name') ?? '';
@@ -66,6 +68,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _caregiverSync = prefs.getBool('caregiver_alerts_enabled') ?? false;
       _appLockEnabled = prefs.getBool('app_lock_enabled') ?? false;
       _alarmSound = prefs.getString('alarm_sound') ?? 'Serene Bell';
+      _deviceAlarmSoundUri = prefs.getString('device_alarm_sound_uri');
+      if (_deviceAlarmSoundUri?.isEmpty ?? true) _deviceAlarmSoundUri = null;
       _snoozeDuration = prefs.getInt('snooze_duration') ?? 10;
     });
   }
@@ -84,6 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await prefs.setBool('caregiver_alerts_enabled', _caregiverSync);
     await prefs.setBool('app_lock_enabled', _appLockEnabled);
     await prefs.setString('alarm_sound', _alarmSound);
+    await prefs.setString('device_alarm_sound_uri', _deviceAlarmSoundUri ?? '');
     await prefs.setInt('snooze_duration', _snoozeDuration);
   }
 
@@ -278,6 +283,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pop(ctx);
               await _controller.clearAllData();
               if (mounted) {
+                await _loadPrefs();
                 setState(() {});
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -731,7 +737,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Alarm Tone', style: AppTypography.labelMd(color: AppColors.onSurface)),
-                      Text('Loops until stopped or snoozed', style: AppTypography.bodySm(color: AppColors.onSurfaceVariant)),
+                      Text('Choose an app tone or one from this device', style: AppTypography.bodySm(color: AppColors.onSurfaceVariant)),
                     ],
                     ),
                   ),
@@ -740,20 +746,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       DropdownButton<String>(
-                        value: _alarmSound,
+                        value: _deviceAlarmSoundUri == null ? _alarmSound : 'Device alarm tone',
                         underline: const SizedBox(),
-                        items: ['Serene Bell', 'Gentle Chime', 'Clinic Pulse'].map((t) => DropdownMenuItem(value: t, child: Text(t, style: AppTypography.labelSm(color: AppColors.primary)))).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => _alarmSound = val);
-                            _savePrefs();
+                        items: ['Serene Bell', 'Gentle Chime', 'Clinic Pulse', 'Harbor Chime', 'Soft Pulse', 'Device alarm tone'].map((t) => DropdownMenuItem(value: t, child: Text(t, style: AppTypography.labelSm(color: AppColors.primary)))).toList(),
+                        onChanged: (val) async {
+                          if (val == 'Device alarm tone') {
+                            final uri = await NotificationService.instance.pickDeviceAlarmSound(_deviceAlarmSoundUri);
+                            if (uri != null && mounted) {
+                              setState(() => _deviceAlarmSoundUri = uri);
+                              await _savePrefs();
+                            }
+                          } else if (val != null) {
+                            setState(() {
+                              _alarmSound = val;
+                              _deviceAlarmSoundUri = null;
+                            });
+                            await _savePrefs();
                           }
                         },
                       ),
                       TextButton.icon(
-                        onPressed: () => NotificationService.instance.previewAlarmSound(_alarmSound),
+                        onPressed: () => NotificationService.instance.previewAlarmSound(
+                          _alarmSound,
+                          customToneUri: _deviceAlarmSoundUri,
+                        ),
                         icon: const Icon(Icons.play_arrow_rounded, size: 16),
                         label: const Text('Preview'),
+                        style: TextButton.styleFrom(
+                          minimumSize: Size.zero,
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => NotificationService.instance.testAlarm(
+                          _alarmSound,
+                          customToneUri: _deviceAlarmSoundUri,
+                        ),
+                        icon: const Icon(Icons.alarm_rounded, size: 16),
+                        label: const Text('Test alarm'),
                         style: TextButton.styleFrom(
                           minimumSize: Size.zero,
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -831,7 +862,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 }
                 setState(() => _caregiverSync = v);
                 await _savePrefs();
-                await _controller.syncReminderSchedule();
+                await _controller.resyncCaregiverAlerts();
               },
             ),
             const SizedBox(height: 20),
@@ -949,6 +980,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               (v) async {
                 setState(() => _lowStockAlerts = v);
                 await _savePrefs();
+                if (v) await _controller.refreshData(syncReminders: false);
               },
               icon: Icons.inventory_2_outlined,
               iconColor: AppColors.alertCoral,

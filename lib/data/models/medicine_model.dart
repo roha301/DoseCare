@@ -11,9 +11,6 @@ class MedicineModel {
   final int remainingQuantity;
   final int lowStockThreshold;
   final String foodInstruction; // With food, Before meal, After meal, Empty stomach, Anytime
-  final String pharmacyName;
-  final String rxNumber;
-  final int refillsAvailable;
   final String notes;
   final bool isActive;
 
@@ -30,9 +27,6 @@ class MedicineModel {
     required this.remainingQuantity,
     this.lowStockThreshold = 5,
     this.foodInstruction = 'With food',
-    this.pharmacyName = 'Walgreens Pharmacy',
-    this.rxNumber = '',
-    this.refillsAvailable = 1,
     this.notes = '',
     this.isActive = true,
   });
@@ -78,9 +72,6 @@ class MedicineModel {
     int? remainingQuantity,
     int? lowStockThreshold,
     String? foodInstruction,
-    String? pharmacyName,
-    String? rxNumber,
-    int? refillsAvailable,
     String? notes,
     bool? isActive,
   }) {
@@ -97,9 +88,6 @@ class MedicineModel {
       remainingQuantity: remainingQuantity ?? this.remainingQuantity,
       lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
       foodInstruction: foodInstruction ?? this.foodInstruction,
-      pharmacyName: pharmacyName ?? this.pharmacyName,
-      rxNumber: rxNumber ?? this.rxNumber,
-      refillsAvailable: refillsAvailable ?? this.refillsAvailable,
       notes: notes ?? this.notes,
       isActive: isActive ?? this.isActive,
     );
@@ -119,9 +107,6 @@ class MedicineModel {
       'remaining_quantity': remainingQuantity,
       'low_stock_threshold': lowStockThreshold,
       'food_instruction': foodInstruction,
-      'pharmacy_name': pharmacyName,
-      'rx_number': rxNumber,
-      'refills_available': refillsAvailable,
       'notes': notes,
       'is_active': isActive ? 1 : 0,
     };
@@ -141,9 +126,6 @@ class MedicineModel {
       remainingQuantity: map['remaining_quantity'] as int? ?? 30,
       lowStockThreshold: map['low_stock_threshold'] as int? ?? 5,
       foodInstruction: map['food_instruction'] as String? ?? 'With food',
-      pharmacyName: map['pharmacy_name'] as String? ?? 'Walgreens Pharmacy',
-      rxNumber: map['rx_number'] as String? ?? '',
-      refillsAvailable: map['refills_available'] as int? ?? 1,
       notes: map['notes'] as String? ?? '',
       isActive: (map['is_active'] as int? ?? 1) == 1,
     );

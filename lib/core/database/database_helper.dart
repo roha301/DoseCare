@@ -31,7 +31,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -67,9 +67,6 @@ class DatabaseHelper {
         remaining_quantity INTEGER NOT NULL,
         low_stock_threshold INTEGER NOT NULL DEFAULT 5,
         food_instruction TEXT,
-        pharmacy_name TEXT,
-        rx_number TEXT,
-        refills_available INTEGER DEFAULT 1,
         notes TEXT,
         is_active INTEGER DEFAULT 1
       )
@@ -166,6 +163,41 @@ class DatabaseHelper {
 
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) await _createOccurrenceTables(db);
+    if (oldVersion < 3) {
+      // Rebuild the table so obsolete linked-dispensary/Rx fields are removed
+      // from existing installations as well as new ones.
+      await db.execute('''
+        CREATE TABLE medicines_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER,
+          name TEXT NOT NULL,
+          brand_name TEXT,
+          type TEXT NOT NULL,
+          dosage TEXT NOT NULL,
+          pill_color TEXT NOT NULL,
+          imprint_code TEXT,
+          total_quantity INTEGER NOT NULL,
+          remaining_quantity INTEGER NOT NULL,
+          low_stock_threshold INTEGER NOT NULL DEFAULT 5,
+          food_instruction TEXT,
+          notes TEXT,
+          is_active INTEGER DEFAULT 1
+        )
+      ''');
+      await db.execute('''
+        INSERT INTO medicines_new (
+          id, user_id, name, brand_name, type, dosage, pill_color,
+          imprint_code, total_quantity, remaining_quantity,
+          low_stock_threshold, food_instruction, notes, is_active
+        )
+        SELECT id, user_id, name, brand_name, type, dosage, pill_color,
+          imprint_code, total_quantity, remaining_quantity,
+          low_stock_threshold, food_instruction, notes, is_active
+        FROM medicines
+      ''');
+      await db.execute('DROP TABLE medicines');
+      await db.execute('ALTER TABLE medicines_new RENAME TO medicines');
+    }
   }
 
   // ---------------- CRUD Operations ----------------
@@ -209,7 +241,7 @@ class DatabaseHelper {
     final db = await instance.database;
     return await db.rawQuery('''
       SELECT s.*, m.name, m.brand_name, m.dosage, m.type, m.pill_color, m.imprint_code,
-             m.remaining_quantity, m.low_stock_threshold, m.food_instruction, m.pharmacy_name
+             m.remaining_quantity, m.low_stock_threshold, m.food_instruction
       FROM schedules s
       INNER JOIN medicines m ON s.medicine_id = m.id
       WHERE m.is_active = 1
@@ -430,7 +462,7 @@ class DatabaseHelper {
       SELECT o.*, s.id AS schedule_row_id, m.id AS medicine_row_id,
              s.time_of_day, s.period_label, s.dose_count, s.days_of_week, s.frequency_type,
              m.name, m.brand_name, m.dosage, m.type, m.pill_color, m.imprint_code,
-             m.remaining_quantity, m.low_stock_threshold, m.food_instruction, m.pharmacy_name
+             m.remaining_quantity, m.low_stock_threshold, m.food_instruction
       FROM dose_occurrences o
       INNER JOIN schedules s ON o.schedule_id = s.id
       INNER JOIN medicines m ON o.medicine_id = m.id
@@ -502,8 +534,7 @@ class DatabaseHelper {
     final db = await instance.database;
     await db.rawUpdate('''
       UPDATE medicines 
-      SET remaining_quantity = remaining_quantity + ?,
-          refills_available = MAX(0, refills_available - 1)
+      SET remaining_quantity = remaining_quantity + ?
       WHERE id = ?
     ''', [quantityAdded, medicineId]);
   }
@@ -536,6 +567,27 @@ class DatabaseHelper {
   }
 
   // Wipe all local app data only after the explicit confirmation in Profile.
+  /// IDs are needed before a wipe so the platform alarm manager can cancel
+  /// reminders which are stored outside SQLite.
+  Future<List<int>> getOccurrenceIdsForAlarmCancellation() async {
+    final db = await instance.database;
+    final rows = await db.query('dose_occurrences', columns: ['id']);
+    final activeIds = rows
+        .map((row) => row['id'])
+        .whereType<int>()
+        .toList(growable: false);
+
+    // Deleting SQLite rows does not reset AUTOINCREMENT. Include every ID up
+    // to the sequence value so a reminder left behind by an older reset can
+    // still be cancelled, even though its row no longer exists.
+    final sequence = await db.rawQuery(
+      "SELECT seq FROM sqlite_sequence WHERE name = 'dose_occurrences'",
+    );
+    final lastId = sequence.isEmpty ? 0 : (sequence.first['seq'] as int? ?? 0);
+    if (lastId <= 0) return activeIds;
+    return List<int>.generate(lastId, (index) => index + 1, growable: false);
+  }
+
   Future<void> clearAllData() async {
     final db = await instance.database;
     await db.transaction((txn) async {

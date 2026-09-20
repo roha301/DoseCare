@@ -779,7 +779,7 @@ class _TodayScreenState extends State<TodayScreen> {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Refill ordered for ${lowMed.name}! Added 30 doses.'),
+                            content: Text('Added 30 doses to ${lowMed.name}.'),
                             backgroundColor: AppColors.primary,
                           ),
                         );
@@ -796,7 +796,7 @@ class _TodayScreenState extends State<TodayScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '1-Click Pharmacy Refill',
+                          'Add 30 doses',
                           style: AppTypography.labelMd(color: Colors.white),
                         ),
                         const SizedBox(width: 6),

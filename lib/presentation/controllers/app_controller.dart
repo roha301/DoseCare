@@ -50,6 +50,7 @@ class AppController extends ChangeNotifier {
   // Refreshes the foreground view; reminders themselves are scheduled by the OS.
   Timer? _reminderTimer;
   bool _isSyncingReminders = false;
+  bool _isResetting = false;
 
   List<Map<String, dynamic>> get doseHistory => allHistoryLogs;
 
@@ -175,15 +176,46 @@ class AppController extends ChangeNotifier {
 
     todayTimeline = items;
     notifyListeners();
+    unawaited(_evaluateLowStockAlerts());
     // These calls invoke platform code and may be slow on some devices. Keep
     // the patient's schedule responsive while the OS reminders are updated.
     if (syncReminders) unawaited(syncReminderSchedule());
   }
 
+  /// Posts one alert when a medicine first crosses its configured low-stock
+  /// threshold. The state resets after it is restocked, ready for the next
+  /// genuine low-supply event.
+  Future<void> _evaluateLowStockAlerts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final alertsEnabled = (prefs.getBool('notifications_enabled') ?? true) &&
+        (prefs.getBool('low_stock_alerts') ?? true);
+    for (final medicine in medicines) {
+      if (medicine.id == null) continue;
+      final key = 'low_stock_notified_${medicine.id}';
+      final alreadyAlerted = prefs.getBool(key) ?? false;
+      if (!medicine.isLowStock) {
+        if (alreadyAlerted) await prefs.setBool(key, false);
+        continue;
+      }
+      // Do not consume the alert while notifications are turned off. It will
+      // be delivered as soon as the patient enables low-stock alerts again.
+      if (!alertsEnabled) continue;
+      if (alreadyAlerted) continue;
+      // Mark first so refreshes cannot duplicate the same alert.
+      await prefs.setBool(key, true);
+      await NotificationService.instance.sendLowStockNotification(
+        id: medicine.id!,
+        medicineName: medicine.name,
+        remaining: medicine.remainingQuantity,
+        daysLeft: medicine.estimatedDaysRemaining(1),
+      );
+    }
+  }
+
   /// Schedules the next 30 days with the operating system, so alarms keep
   /// working when the app itself is closed.
   Future<void> syncReminderSchedule() async {
-    if (_isSyncingReminders) return;
+    if (_isSyncingReminders || _isResetting) return;
     _isSyncingReminders = true;
     try {
       final pending = await DatabaseHelper.instance.getPendingOccurrencesUntil(
@@ -195,8 +227,13 @@ class AppController extends ChangeNotifier {
           (prefs.getBool('reminders_enabled') ?? true);
       final caregiverAlertsEnabled =
           prefs.getBool('caregiver_alerts_enabled') ?? false;
+      final canSendCaregiverSms = caregiverAlertsEnabled &&
+          await NotificationService.instance.hasCaregiverSmsPermission();
       final caregiverPhone = user?.caregiverPhone?.trim();
       for (final row in pending) {
+        // A reset can begin while this asynchronous loop is in progress. Do
+        // not register any further OS alarms after that point.
+        if (_isResetting) break;
         final occurrenceId = row['id'] as int;
         if (!enabled) {
           await NotificationService.instance.cancelDoseReminder(occurrenceId);
@@ -209,7 +246,7 @@ class AppController extends ChangeNotifier {
             medicineName: row['name'] as String,
             dosage: row['dosage'] as String,
             scheduledAt: scheduledAt,
-            caregiverPhone: caregiverAlertsEnabled &&
+            caregiverPhone: canSendCaregiverSms &&
                     caregiverPhone != null && caregiverPhone.isNotEmpty
                 ? caregiverPhone
                 : null,
@@ -256,19 +293,6 @@ class AppController extends ChangeNotifier {
     // Refresh data first to get updated remaining quantity
     await refreshData();
 
-    // Check if now low stock after this dose
-    final updatedMed = medicines.firstWhere(
-      (m) => m.id == medicineId,
-      orElse: () => med,
-    );
-    if (updatedMed.isLowStock) {
-      await NotificationService.instance.sendLowStockNotification(
-        id: medicineId,
-        medicineName: updatedMed.name,
-        remaining: updatedMed.remainingQuantity,
-        daysLeft: updatedMed.estimatedDaysRemaining(1),
-      );
-    }
   }
 
   Future<void> skipDose({
@@ -360,6 +384,12 @@ class AppController extends ChangeNotifier {
     return medId;
   }
 
+  Future<int> addMedicineWithoutSchedule(MedicineModel medicine) async {
+    final medId = await DatabaseHelper.instance.insertMedicine(medicine);
+    await refreshData();
+    return medId;
+  }
+
   Future<void> updateMedicine(MedicineModel medicine) async {
     await DatabaseHelper.instance.updateMedicine(medicine);
     await refreshData();
@@ -367,16 +397,56 @@ class AppController extends ChangeNotifier {
 
   Future<void> updateUserProfile(UserModel updatedUser) async {
     await DatabaseHelper.instance.updateUserProfile(updatedUser);
-    await refreshData();
+    await refreshData(syncReminders: false);
+    await resyncCaregiverAlerts();
+  }
+
+  /// Replaces queued caretaker messages without disturbing dose alarms. This
+  /// makes contact-number and consent changes take effect immediately.
+  Future<void> resyncCaregiverAlerts() async {
+    final pending = await DatabaseHelper.instance.getPendingOccurrencesUntil(
+      DateTime.now().add(const Duration(days: 30)),
+    );
+    for (final row in pending) {
+      await NotificationService.instance.cancelCaregiverSms(row['id'] as int);
+    }
+    await syncReminderSchedule();
   }
 
   Future<void> clearAllData() async {
     isLoading = true;
+    _isResetting = true;
     notifyListeners();
-    await DatabaseHelper.instance.clearAllData();
-    await refreshData();
-    isLoading = false;
-    notifyListeners();
+    try {
+      final occurrenceIds = await DatabaseHelper.instance
+          .getOccurrenceIdsForAlarmCancellation();
+
+      // Stop a ringing alarm immediately and cancel every OS-owned reminder
+      // before their occurrence records disappear from SQLite.
+      await NotificationService.instance.clearAllNotifications();
+      for (final occurrenceId in occurrenceIds) {
+        await NotificationService.instance.cancelDoseReminder(occurrenceId);
+      }
+
+      // Wait for a pre-existing reminder sync to finish. The reset flag makes
+      // it exit without scheduling any more alarms; a second cancellation
+      // closes the small race window around an in-flight platform call.
+      while (_isSyncingReminders) {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+      for (final occurrenceId in occurrenceIds) {
+        await NotificationService.instance.cancelDoseReminder(occurrenceId);
+      }
+
+      await DatabaseHelper.instance.clearAllData();
+      await (await SharedPreferences.getInstance()).clear();
+      await NotificationService.instance.clearAllNotifications();
+      await refreshData(syncReminders: false);
+    } finally {
+      _isResetting = false;
+      isLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> deleteMedicine(int id) async {

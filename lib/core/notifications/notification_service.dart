@@ -105,6 +105,7 @@ class NotificationService {
           'dosage': dosage,
           'triggerAtMillis': scheduledAt.millisecondsSinceEpoch,
           'toneName': prefs.getString('alarm_sound') ?? 'Serene Bell',
+          'customToneUri': prefs.getString('device_alarm_sound_uri'),
           'caregiverPhone': caregiverPhone,
           'patientName': patientName,
         });
@@ -161,6 +162,16 @@ class NotificationService {
     }
   }
 
+  Future<bool> hasCaregiverSmsPermission() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return false;
+    try {
+      return await _alarmChannel.invokeMethod<bool>('isSmsPermissionGranted') ?? false;
+    } catch (e) {
+      debugPrint('Unable to check SMS permission: $e');
+      return false;
+    }
+  }
+
   Future<void> cancelDoseReminder(int occurrenceId) async {
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
@@ -172,14 +183,69 @@ class NotificationService {
     }
   }
 
-  /// Plays the currently selected Android system sound briefly so the label in
-  /// Profile corresponds to something the patient can actually hear.
-  Future<void> previewAlarmSound(String toneName) async {
+  /// Removes only the queued caretaker text, leaving the medication alarm in
+  /// place. This is used when the caretaker number or consent changes.
+  Future<void> cancelCaregiverSms(int occurrenceId) async {
     if (defaultTargetPlatform != TargetPlatform.android) return;
     try {
-      await _alarmChannel.invokeMethod<void>('preview', {'toneName': toneName});
+      await _alarmChannel.invokeMethod<void>(
+        'cancelCaregiverSms',
+        {'occurrenceId': occurrenceId},
+      );
+    } catch (e) {
+      debugPrint('Unable to cancel caregiver SMS: $e');
+    }
+  }
+
+  /// Removes every user-visible notification and stops an alarm that is
+  /// currently playing. Dated reminders are cancelled individually by the
+  /// controller because Android exact alarms are keyed by occurrence ID.
+  Future<void> clearAllNotifications() async {
+    try {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await _alarmChannel.invokeMethod<void>('cancelAll');
+      }
+      await _notificationsPlugin.cancelAll();
+    } catch (e) {
+      debugPrint('Unable to clear notifications: $e');
+    }
+  }
+
+  Future<String?> pickDeviceAlarmSound(String? existingUri) async {
+    if (defaultTargetPlatform != TargetPlatform.android) return null;
+    try {
+      return await _alarmChannel.invokeMethod<String>(
+        'pickDeviceAlarmSound',
+        {'existingUri': existingUri},
+      );
+    } catch (e) {
+      debugPrint('Unable to choose device alarm sound: $e');
+      return null;
+    }
+  }
+
+  /// Plays the currently selected app or device alarm sound briefly.
+  Future<void> previewAlarmSound(String toneName, {String? customToneUri}) async {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await _alarmChannel.invokeMethod<void>('preview', {
+        'toneName': toneName,
+        'customToneUri': customToneUri,
+      });
     } catch (e) {
       debugPrint('Unable to preview alarm sound: $e');
+    }
+  }
+
+  Future<void> testAlarm(String toneName, {String? customToneUri}) async {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await _alarmChannel.invokeMethod<void>('testAlarm', {
+        'toneName': toneName,
+        'customToneUri': customToneUri,
+      });
+    } catch (e) {
+      debugPrint('Unable to start test alarm: $e');
     }
   }
 
@@ -297,6 +363,7 @@ class NotificationService {
           'dosage': dosage,
           'triggerAtMillis': DateTime.now().add(Duration(minutes: minutes)).millisecondsSinceEpoch,
           'toneName': prefs.getString('alarm_sound') ?? 'Serene Bell',
+          'customToneUri': prefs.getString('device_alarm_sound_uri'),
         });
         return;
       }
