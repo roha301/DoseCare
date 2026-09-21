@@ -27,6 +27,7 @@ class ScheduledDoseItem {
   bool get isSkipped => occurrence.status == 'SKIPPED';
   bool get isSnoozed => occurrence.status == 'SNOOZED';
   bool get isPending => occurrence.status == 'PENDING';
+  bool get isMissed => occurrence.status == 'MISSED' || occurrence.status == 'NOT_TAKEN';
 }
 
 class AppController extends ChangeNotifier {
@@ -111,7 +112,7 @@ class AppController extends ChangeNotifier {
 
   void _startReminderTimer() {
     _reminderTimer?.cancel();
-    _reminderTimer = Timer.periodic(const Duration(minutes: 15), (_) {
+    _reminderTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       unawaited(refreshData());
     });
   }
@@ -162,6 +163,8 @@ class AppController extends ChangeNotifier {
         doseCount: row['dose_count'] as int? ?? 1,
         daysOfWeek: row['days_of_week'] as String? ?? '1,2,3,4,5,6,7',
         frequencyType: row['frequency_type'] as String? ?? 'daily',
+        startDate: row['start_date'] as String?,
+        endDate: row['end_date'] as String?,
       );
       final matchingMedicines = medicines.where((m) => m.id == row['medicine_row_id']);
       if (matchingMedicines.isEmpty) continue;
@@ -227,9 +230,15 @@ class AppController extends ChangeNotifier {
           (prefs.getBool('reminders_enabled') ?? true);
       final caregiverAlertsEnabled =
           prefs.getBool('caregiver_alerts_enabled') ?? false;
-      final canSendCaregiverSms = caregiverAlertsEnabled &&
+      final canSendCaregiverSms =
           await NotificationService.instance.hasCaregiverSmsPermission();
       final caregiverPhone = user?.caregiverPhone?.trim();
+      await NotificationService.instance.scheduleDailyCaregiverReport(
+        enabled: (prefs.getBool('daily_caregiver_report_enabled') ?? false) &&
+            canSendCaregiverSms,
+        caregiverPhone: caregiverPhone ?? '',
+        patientName: user?.name,
+      );
       for (final row in pending) {
         // A reset can begin while this asynchronous loop is in progress. Do
         // not register any further OS alarms after that point.
@@ -246,7 +255,8 @@ class AppController extends ChangeNotifier {
             medicineName: row['name'] as String,
             dosage: row['dosage'] as String,
             scheduledAt: scheduledAt,
-            caregiverPhone: canSendCaregiverSms &&
+            caregiverPhone: caregiverAlertsEnabled &&
+                    canSendCaregiverSms &&
                     caregiverPhone != null && caregiverPhone.isNotEmpty
                 ? caregiverPhone
                 : null,
@@ -275,19 +285,21 @@ class AppController extends ChangeNotifier {
       await refreshData();
       return;
     }
-    final occurrence = todayTimeline.firstWhere((item) => item.schedule.id == scheduleId && item.medicine.id == medicineId).occurrence;
+    final matchingOccurrence = todayTimeline.where((item) => item.schedule.id == scheduleId && item.medicine.id == medicineId).firstOrNull;
+    if (matchingOccurrence == null) return;
+    final occurrence = matchingOccurrence.occurrence;
     final recorded = await DatabaseHelper.instance.recordOccurrenceAction(
       occurrenceId: occurrence.id!, status: 'TAKEN', doseCount: doseCount,
     );
     if (!recorded) return;
     await NotificationService.instance.cancelDoseReminder(occurrence.id!);
 
-    final med = medicines.firstWhere((m) => m.id == medicineId);
+    final med = medicines.where((m) => m.id == medicineId).firstOrNull;
 
     // Dose taken notification (respects dose_taken_alerts toggle)
     await NotificationService.instance.sendDoseTakenNotification(
       id: medicineId,
-      medicineName: med.name,
+      medicineName: med?.name ?? matchingOccurrence.medicine.name,
     );
 
     // Refresh data first to get updated remaining quantity
@@ -300,7 +312,9 @@ class AppController extends ChangeNotifier {
     required int scheduleId,
     required String reason,
   }) async {
-    final occurrence = todayTimeline.firstWhere((item) => item.schedule.id == scheduleId && item.medicine.id == medicineId).occurrence;
+    final matchingOccurrence = todayTimeline.where((item) => item.schedule.id == scheduleId && item.medicine.id == medicineId).firstOrNull;
+    if (matchingOccurrence == null) return;
+    final occurrence = matchingOccurrence.occurrence;
     final recorded = await DatabaseHelper.instance.recordOccurrenceAction(
       occurrenceId: occurrence.id!, status: 'SKIPPED', doseCount: 0, skipReason: reason,
     );
@@ -370,6 +384,9 @@ class AppController extends ChangeNotifier {
     required String timeOfDay,
     required String periodLabel,
     String frequencyType = 'daily',
+    String? daysOfWeek,
+    String? startDate,
+    String? endDate,
   }) async {
     final medId = await DatabaseHelper.instance.insertMedicine(medicine);
     final schedule = ScheduleModel(
@@ -377,7 +394,10 @@ class AppController extends ChangeNotifier {
       timeOfDay: timeOfDay,
       periodLabel: periodLabel,
       doseCount: 1,
+      daysOfWeek: daysOfWeek ?? '1,2,3,4,5,6,7',
       frequencyType: frequencyType,
+      startDate: startDate,
+      endDate: endDate,
     );
     await DatabaseHelper.instance.insertSchedule(schedule);
     await refreshData();
@@ -424,9 +444,7 @@ class AppController extends ChangeNotifier {
       // Stop a ringing alarm immediately and cancel every OS-owned reminder
       // before their occurrence records disappear from SQLite.
       await NotificationService.instance.clearAllNotifications();
-      for (final occurrenceId in occurrenceIds) {
-        await NotificationService.instance.cancelDoseReminder(occurrenceId);
-      }
+      await NotificationService.instance.cancelDoseReminders(occurrenceIds);
 
       // Wait for a pre-existing reminder sync to finish. The reset flag makes
       // it exit without scheduling any more alarms; a second cancellation
@@ -434,9 +452,7 @@ class AppController extends ChangeNotifier {
       while (_isSyncingReminders) {
         await Future<void>.delayed(const Duration(milliseconds: 25));
       }
-      for (final occurrenceId in occurrenceIds) {
-        await NotificationService.instance.cancelDoseReminder(occurrenceId);
-      }
+      await NotificationService.instance.cancelDoseReminders(occurrenceIds);
 
       await DatabaseHelper.instance.clearAllData();
       await (await SharedPreferences.getInstance()).clear();

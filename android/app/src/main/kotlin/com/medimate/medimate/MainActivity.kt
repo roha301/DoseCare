@@ -37,12 +37,26 @@ class MainActivity : FlutterActivity() {
                         DoseAlarmScheduler.cancel(this, call.argument<Int>("occurrenceId") ?: 0)
                         result.success(null)
                     }
+                    "cancelBatch" -> {
+                        val ids = call.argument<List<Int>>("occurrenceIds") ?: emptyList()
+                        DoseAlarmScheduler.cancelBatch(this, ids)
+                        result.success(null)
+                    }
                     "cancelCaregiverSms" -> {
                         DoseAlarmScheduler.cancelCaregiverSms(this, call.argument<Int>("occurrenceId") ?: 0)
                         result.success(null)
                     }
                     "cancelAll" -> {
                         DoseAlarmScheduler.cancelAll(this)
+                        result.success(null)
+                    }
+                    "scheduleDailyReport" -> {
+                        DoseAlarmScheduler.scheduleDailyReport(
+                            this,
+                            call.argument<Boolean>("enabled") ?: false,
+                            call.argument<String>("caregiverPhone") ?: "",
+                            call.argument<String>("patientName"),
+                        )
                         result.success(null)
                     }
                     "preview" -> {
@@ -67,7 +81,8 @@ class MainActivity : FlutterActivity() {
                         tonePickerResult = result
                         startActivityForResult(Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
                             putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
-                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, false)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
                             putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
                             call.argument<String>("existingUri")?.let {
                                 putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(it))

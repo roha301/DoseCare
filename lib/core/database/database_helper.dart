@@ -34,6 +34,14 @@ class DatabaseHelper {
       version: 3,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
+      onOpen: (db) async {
+        try {
+          await db.execute('ALTER TABLE schedules ADD COLUMN start_date TEXT');
+        } catch (_) {}
+        try {
+          await db.execute('ALTER TABLE schedules ADD COLUMN end_date TEXT');
+        } catch (_) {}
+      },
     );
   }
 
@@ -81,7 +89,9 @@ class DatabaseHelper {
         period_label TEXT NOT NULL,
         dose_count INTEGER DEFAULT 1,
         days_of_week TEXT DEFAULT '1,2,3,4,5,6,7',
-        frequency_type TEXT DEFAULT 'daily'
+        frequency_type TEXT DEFAULT 'daily',
+        start_date TEXT,
+        end_date TEXT
       )
     ''');
 
@@ -319,7 +329,7 @@ class DatabaseHelper {
     final day = DateTime(date.year, date.month, date.day);
     final dayKey = day.toIso8601String().substring(0, 10);
     final schedules = await db.rawQuery('''
-      SELECT s.id, s.medicine_id, s.time_of_day, s.days_of_week, s.frequency_type
+      SELECT s.id, s.medicine_id, s.time_of_day, s.days_of_week, s.frequency_type, s.start_date, s.end_date
       FROM schedules s INNER JOIN medicines m ON s.medicine_id = m.id
       WHERE m.is_active = 1
     ''');
@@ -327,6 +337,16 @@ class DatabaseHelper {
     for (final schedule in schedules) {
       final frequency = (schedule['frequency_type'] as String? ?? 'daily').toLowerCase();
       if (frequency == 'as_needed') continue;
+
+      final startDateStr = schedule['start_date'] as String?;
+      final endDateStr = schedule['end_date'] as String?;
+      if (startDateStr != null && startDateStr.isNotEmpty && dayKey.compareTo(startDateStr) < 0) {
+        continue;
+      }
+      if (endDateStr != null && endDateStr.isNotEmpty && dayKey.compareTo(endDateStr) > 0) {
+        continue;
+      }
+
       final days = (schedule['days_of_week'] as String? ?? '1,2,3,4,5,6,7')
           .split(',').map((value) => int.tryParse(value.trim())).whereType<int>().toSet();
       if (!days.contains(day.weekday)) continue;
@@ -360,7 +380,9 @@ class DatabaseHelper {
         final scheduledAt = DateTime.tryParse(row['scheduled_at'] as String);
         final time = _parseTime(row['time_of_day'] as String);
         if (scheduledAt == null || time == null ||
-            (scheduledAt.hour == time.$1 && scheduledAt.minute == time.$2)) continue;
+            (scheduledAt.hour == time.$1 && scheduledAt.minute == time.$2)) {
+          continue;
+        }
         final corrected = DateTime(scheduledAt.year, scheduledAt.month, scheduledAt.day, time.$1, time.$2).toIso8601String();
         final duplicate = await txn.query(
           'dose_occurrences', columns: ['id'],
@@ -384,16 +406,28 @@ class DatabaseHelper {
   Future<void> ensureOccurrencesForNextDays(DateTime start, {int days = 30}) async {
     final db = await instance.database;
     final schedules = await db.rawQuery('''
-      SELECT s.id, s.medicine_id, s.time_of_day, s.days_of_week, s.frequency_type
+      SELECT s.id, s.medicine_id, s.time_of_day, s.days_of_week, s.frequency_type, s.start_date, s.end_date
       FROM schedules s INNER JOIN medicines m ON s.medicine_id = m.id
       WHERE m.is_active = 1
     ''');
     final batch = db.batch();
     for (var offset = 0; offset <= days; offset++) {
       final day = DateTime(start.year, start.month, start.day).add(Duration(days: offset));
+      final dayStr = '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
       for (final schedule in schedules) {
         final frequency = (schedule['frequency_type'] as String? ?? 'daily').toLowerCase();
         if (frequency == 'as_needed') continue;
+
+        // Respect specific start and end date range if specified
+        final startDateStr = schedule['start_date'] as String?;
+        final endDateStr = schedule['end_date'] as String?;
+        if (startDateStr != null && startDateStr.isNotEmpty && dayStr.compareTo(startDateStr) < 0) {
+          continue;
+        }
+        if (endDateStr != null && endDateStr.isNotEmpty && dayStr.compareTo(endDateStr) > 0) {
+          continue;
+        }
+
         final weekdays = (schedule['days_of_week'] as String? ?? '1,2,3,4,5,6,7')
             .split(',')
             .map((value) => int.tryParse(value.trim()))
@@ -415,25 +449,27 @@ class DatabaseHelper {
     await batch.commit(noResult: true);
   }
 
-  /// A dose becomes missed only after a grace period, preserving the ability to
-  /// record a late dose without silently penalising adherence.
-  Future<void> markOverdueOccurrences({Duration gracePeriod = const Duration(hours: 2)}) async {
+  /// Marks occurrences as MISSED (Not Taken) if the patient does not take them
+  /// within their scheduled day (i.e. scheduled prior to today's start/midnight).
+  Future<void> markOverdueOccurrences({DateTime? forDate}) async {
     final db = await instance.database;
-    final cutoff = DateTime.now().subtract(gracePeriod).toIso8601String();
+    final now = forDate ?? DateTime.now();
+    // Midnight / start of the current day: any uncompleted dose scheduled before today is marked MISSED (Not Taken)
+    final startOfToday = DateTime(now.year, now.month, now.day).toIso8601String();
     await db.transaction((txn) async {
       final overdue = await txn.query(
         'dose_occurrences',
-        where: "status = 'PENDING' AND scheduled_at < ?",
-        whereArgs: [cutoff],
+        where: "(status = 'PENDING' OR status = 'SNOOZED') AND scheduled_at < ?",
+        whereArgs: [startOfToday],
       );
-      final now = DateTime.now().toIso8601String();
+      final nowStr = now.toIso8601String();
       for (final occurrence in overdue) {
-        await txn.update('dose_occurrences', {'status': 'MISSED', 'action_time': now}, where: 'id = ?', whereArgs: [occurrence['id']]);
+        await txn.update('dose_occurrences', {'status': 'MISSED', 'action_time': nowStr}, where: 'id = ?', whereArgs: [occurrence['id']]);
         await txn.insert('dose_history', {
           'medicine_id': occurrence['medicine_id'],
           'schedule_id': occurrence['schedule_id'],
           'scheduled_time': occurrence['scheduled_at'],
-          'action_time': now,
+          'action_time': nowStr,
           'status': 'MISSED',
         });
       }
@@ -460,7 +496,7 @@ class DatabaseHelper {
     final key = DateTime(date.year, date.month, date.day).toIso8601String().substring(0, 10);
     return db.rawQuery('''
       SELECT o.*, s.id AS schedule_row_id, m.id AS medicine_row_id,
-             s.time_of_day, s.period_label, s.dose_count, s.days_of_week, s.frequency_type,
+             s.time_of_day, s.period_label, s.dose_count, s.days_of_week, s.frequency_type, s.start_date, s.end_date,
              m.name, m.brand_name, m.dosage, m.type, m.pill_color, m.imprint_code,
              m.remaining_quantity, m.low_stock_threshold, m.food_instruction
       FROM dose_occurrences o
@@ -495,7 +531,7 @@ class DatabaseHelper {
       if (rows.isEmpty) return false;
       final occurrence = rows.first;
       final current = occurrence['status'] as String;
-      if (current != 'PENDING' && current != 'SNOOZED') return false;
+      if (current != 'PENDING' && current != 'SNOOZED' && current != 'MISSED') return false;
       final now = DateTime.now().toIso8601String();
       await txn.update('dose_occurrences', {
         'status': status,
@@ -577,15 +613,10 @@ class DatabaseHelper {
         .whereType<int>()
         .toList(growable: false);
 
-    // Deleting SQLite rows does not reset AUTOINCREMENT. Include every ID up
-    // to the sequence value so a reminder left behind by an older reset can
-    // still be cancelled, even though its row no longer exists.
-    final sequence = await db.rawQuery(
-      "SELECT seq FROM sqlite_sequence WHERE name = 'dose_occurrences'",
-    );
-    final lastId = sequence.isEmpty ? 0 : (sequence.first['seq'] as int? ?? 0);
-    if (lastId <= 0) return activeIds;
-    return List<int>.generate(lastId, (index) => index + 1, growable: false);
+    // Only currently stored occurrences can still have a future alarm. Using
+    // every historical AUTOINCREMENT ID made a reset increasingly slow and
+    // could leave the Today screen waiting behind its loading indicator.
+    return activeIds;
   }
 
   Future<void> clearAllData() async {

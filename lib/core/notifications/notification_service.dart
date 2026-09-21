@@ -183,6 +183,43 @@ class NotificationService {
     }
   }
 
+  /// Cancels many native exact alarms in one platform call. This is used by
+  /// Reset All Data so large histories do not block the UI.
+  Future<void> cancelDoseReminders(Iterable<int> occurrenceIds) async {
+    final ids = occurrenceIds.toList(growable: false);
+    if (ids.isEmpty) return;
+    try {
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await _alarmChannel.invokeMethod<void>('cancelBatch', {'occurrenceIds': ids});
+      } else {
+        for (final id in ids) {
+          await _notificationsPlugin.cancel(id: 500000 + id);
+        }
+      }
+    } catch (e) {
+      debugPrint('Unable to cancel medication reminders: $e');
+    }
+  }
+
+  /// Queues the next 11 PM adherence SMS for the saved caregiver. Android
+  /// owns the alarm, so it remains scheduled while the Flutter UI is closed.
+  Future<void> scheduleDailyCaregiverReport({
+    required bool enabled,
+    required String caregiverPhone,
+    String? patientName,
+  }) async {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await _alarmChannel.invokeMethod<void>('scheduleDailyReport', {
+        'enabled': enabled,
+        'caregiverPhone': caregiverPhone,
+        'patientName': patientName,
+      });
+    } catch (e) {
+      debugPrint('Unable to schedule daily caregiver report: $e');
+    }
+  }
+
   /// Removes only the queued caretaker text, leaving the medication alarm in
   /// place. This is used when the caretaker number or consent changes.
   Future<void> cancelCaregiverSms(int occurrenceId) async {
@@ -204,6 +241,10 @@ class NotificationService {
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
         await _alarmChannel.invokeMethod<void>('cancelAll');
+        await _alarmChannel.invokeMethod<void>('scheduleDailyReport', {
+          'enabled': false,
+          'caregiverPhone': '',
+        });
       }
       await _notificationsPlugin.cancelAll();
     } catch (e) {

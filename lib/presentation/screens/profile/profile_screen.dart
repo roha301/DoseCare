@@ -24,16 +24,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _lowStockAlerts = true;
   bool _doseTakenAlerts = true;
   bool _caregiverSync = true;
+  bool _dailyCaregiverReport = false;
   bool _appLockEnabled = false;
   String _alarmSound = 'Serene Bell';
   String? _deviceAlarmSoundUri;
   int _snoozeDuration = 10;
 
+  // ── Patient profile fields ──────────────────────────────────────────────────
   String _bloodGroup = '';
   String _doctorName = '';
   String _doctorPhone = '';
+  String _doctorSpecialization = '';
   String _allergies = '';
   String _emergencyContact = '';
+  // New extended fields
+  String _maritalStatus = '';
+  String _height = '';      // cm
+  String _weight = '';      // kg
+  String _occupation = '';
+  List<String> _conditions = [];
+  String _insuranceProvider = '';
+
+  // ── Dropdown option lists ───────────────────────────────────────────────────
+  static const List<String> _bloodGroups = ['A+', 'A−', 'B+', 'B−', 'O+', 'O−', 'AB+', 'AB−'];
+  static const List<String> _maritalOptions = ['Married', 'Not Married'];
+  static const List<String> _occupations = [
+    'Student', 'Employed (Private)', 'Employed (Government)',
+    'Self-Employed / Business', 'Homemaker', 'Retired', 'Unemployed', 'Other',
+  ];
+  static const List<String> _specializations = [
+    'General Physician', 'Cardiologist', 'Diabetologist / Endocrinologist',
+    'Neurologist', 'Pulmonologist', 'Gastroenterologist', 'Nephrologist',
+    'Orthopedic Surgeon', 'Dermatologist', 'Psychiatrist',
+    'Gynecologist / Obstetrician', 'Ophthalmologist', 'ENT Specialist',
+    'Oncologist', 'Rheumatologist', 'Urologist', 'Other',
+  ];
+  static const List<String> _conditionOptions = [
+    'Diabetes', 'Hypertension', 'Heart Disease', 'Asthma / COPD',
+    'Thyroid Disorder', 'Kidney Disease', 'Liver Disease',
+    'Arthritis / Joint Pain', 'Epilepsy / Seizures', 'Parkinson\'s Disease',
+    'Alzheimer\'s / Dementia', 'Cancer', 'Anemia',
+    'Anxiety / Depression', 'Migraine', 'Obesity',
+    'High Cholesterol', 'Osteoporosis',
+  ];
+  static const Map<String, String> _countryCodes = {
+    'India': '+91',
+    'United States': '+1',
+    'United Kingdom': '+44',
+    'Australia': '+61',
+    'UAE': '+971',
+    'Singapore': '+65',
+  };
+
+  String _countryCodeFor(String phone) {
+    final trimmed = phone.trim();
+    return _countryCodes.values.firstWhere(
+      (code) => trimmed.startsWith(code),
+      orElse: () => '+91',
+    );
+  }
+
+  String _nationalNumber(String phone, String code) {
+    final trimmed = phone.trim();
+    return trimmed.startsWith(code)
+        ? trimmed.substring(code.length).trim()
+        : trimmed;
+  }
 
   @override
   void initState() {
@@ -59,15 +115,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _bloodGroup = prefs.getString('patient_blood_group') ?? '';
       _doctorName = prefs.getString('patient_doctor_name') ?? '';
       _doctorPhone = prefs.getString('patient_doctor_phone') ?? '';
+      _doctorSpecialization = prefs.getString('patient_doctor_specialization') ?? '';
       _allergies = prefs.getString('patient_allergies') ?? '';
       _emergencyContact = prefs.getString('patient_emergency_contact') ?? '';
+      _maritalStatus = prefs.getString('patient_marital_status') ?? '';
+      _height = prefs.getString('patient_height') ?? '';
+      _weight = prefs.getString('patient_weight') ?? '';
+      _occupation = prefs.getString('patient_occupation') ?? '';
+      _conditions = prefs.getStringList('patient_conditions') ?? [];
+      _insuranceProvider = prefs.getString('patient_insurance') ?? '';
       _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
       _remindersEnabled = prefs.getBool('reminders_enabled') ?? true;
       _lowStockAlerts = prefs.getBool('low_stock_alerts') ?? true;
       _doseTakenAlerts = prefs.getBool('dose_taken_alerts') ?? true;
       _caregiverSync = prefs.getBool('caregiver_alerts_enabled') ?? false;
+      _dailyCaregiverReport = prefs.getBool('daily_caregiver_report_enabled') ?? false;
       _appLockEnabled = prefs.getBool('app_lock_enabled') ?? false;
-      _alarmSound = prefs.getString('alarm_sound') ?? 'Serene Bell';
+      _alarmSound = prefs.getString('alarm_sound') ?? 'Device alarm tone';
       _deviceAlarmSoundUri = prefs.getString('device_alarm_sound_uri');
       if (_deviceAlarmSoundUri?.isEmpty ?? true) _deviceAlarmSoundUri = null;
       _snoozeDuration = prefs.getInt('snooze_duration') ?? 10;
@@ -79,13 +143,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await prefs.setString('patient_blood_group', _bloodGroup);
     await prefs.setString('patient_doctor_name', _doctorName);
     await prefs.setString('patient_doctor_phone', _doctorPhone);
+    await prefs.setString('patient_doctor_specialization', _doctorSpecialization);
     await prefs.setString('patient_allergies', _allergies);
     await prefs.setString('patient_emergency_contact', _emergencyContact);
+    await prefs.setString('patient_marital_status', _maritalStatus);
+    await prefs.setString('patient_height', _height);
+    await prefs.setString('patient_weight', _weight);
+    await prefs.setString('patient_occupation', _occupation);
+    await prefs.setStringList('patient_conditions', _conditions);
+    await prefs.setString('patient_insurance', _insuranceProvider);
     await prefs.setBool('notifications_enabled', _notificationsEnabled);
     await prefs.setBool('reminders_enabled', _remindersEnabled);
     await prefs.setBool('low_stock_alerts', _lowStockAlerts);
     await prefs.setBool('dose_taken_alerts', _doseTakenAlerts);
     await prefs.setBool('caregiver_alerts_enabled', _caregiverSync);
+    await prefs.setBool('daily_caregiver_report_enabled', _dailyCaregiverReport);
     await prefs.setBool('app_lock_enabled', _appLockEnabled);
     await prefs.setString('alarm_sound', _alarmSound);
     await prefs.setString('device_alarm_sound_uri', _deviceAlarmSoundUri ?? '');
@@ -100,10 +172,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final nameCtrl = TextEditingController(text: currentName);
     final ageCtrl = TextEditingController(text: (current?.age != null && current!.age > 0) ? current.age.toString() : '');
-    final genderCtrl = TextEditingController(text: (current?.gender != null && current!.gender != 'Not specified') ? current.gender : '');
-    final bloodCtrl = TextEditingController(text: _bloodGroup);
-    final doctorCtrl = TextEditingController(text: _doctorName);
-    final doctorPhoneCtrl = TextEditingController(text: _doctorPhone);
     final caregiverPhoneCtrl = TextEditingController(
         text: (current?.caregiverPhone != null && current!.caregiverPhone!.isNotEmpty)
             ? current.caregiverPhone
@@ -113,151 +181,433 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ? current.caregiverEmail
             : '');
     final allergiesCtrl = TextEditingController(text: _allergies);
+    final doctorCtrl = TextEditingController(text: _doctorName);
+    final doctorPhoneCtrl = TextEditingController(text: _doctorPhone);
+    final heightCtrl = TextEditingController(text: _height);
+    final weightCtrl = TextEditingController(text: _weight);
+    final insuranceCtrl = TextEditingController(text: _insuranceProvider);
+
+    String? localGender = const ['Male', 'Female', 'Other'].contains(current?.gender) ? current!.gender : null;
+    String? localBloodGroup = _bloodGroups.contains(_bloodGroup) ? _bloodGroup : null;
+    String? localMarital = _maritalOptions.contains(_maritalStatus) ? _maritalStatus : null;
+    String? localOccupation = _occupations.contains(_occupation) ? _occupation : null;
+    String? localSpecialization = _specializations.contains(_doctorSpecialization) ? _doctorSpecialization : null;
+    List<String> localConditions = List.from(_conditions);
+    String caregiverCountryCode = _countryCodeFor(caregiverPhoneCtrl.text);
+    caregiverPhoneCtrl.text =
+        _nationalNumber(caregiverPhoneCtrl.text, caregiverCountryCode);
+    String doctorCountryCode = _countryCodeFor(doctorPhoneCtrl.text);
+    doctorPhoneCtrl.text = _nationalNumber(doctorPhoneCtrl.text, doctorCountryCode);
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            const Icon(Icons.badge_rounded, color: AppColors.primary),
-            const SizedBox(width: 8),
-            const Text('Edit Patient Profile'),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          title: Row(
             children: [
-              Text('Personal Information', style: AppTypography.labelSm(color: AppColors.primary).copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Patient Full Name', hintText: 'Enter your full name', isDense: true),
-              ),
-              const SizedBox(height: 10),
-              Row(
+              const Icon(Icons.badge_rounded, color: AppColors.primary),
+              const SizedBox(width: 8),
+              const Expanded(child: Text('Edit Patient Profile', overflow: TextOverflow.ellipsis)),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: ageCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Age', hintText: 'e.g. 25', isDense: true),
-                    ),
+
+                  // ── Section 1: Personal ─────────────────────────────────────
+                  _dlgSection('Personal Information', Icons.person_outline_rounded),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(labelText: 'Patient Full Name *', hintText: 'Enter your full name', isDense: true),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: const ['Male', 'Female', 'Other'].contains(genderCtrl.text) ? genderCtrl.text : null,
-                      isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Gender', isDense: true),
-                      hint: const Text('Select'),
-                      items: const [
-                        DropdownMenuItem(value: 'Male', child: Text('Male')),
-                        DropdownMenuItem(value: 'Female', child: Text('Female')),
-                        DropdownMenuItem(value: 'Other', child: Text('Other')),
-                      ],
-                      onChanged: (value) => genderCtrl.text = value ?? '',
-                    ),
+                  const SizedBox(height: 10),
+
+                  // Age + Gender row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: ageCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Age', hintText: '25', isDense: true),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: localGender,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Gender', isDense: true),
+                          hint: const Text('Select', style: TextStyle(fontSize: 13)),
+                          items: const [
+                            DropdownMenuItem(value: 'Male', child: Text('Male')),
+                            DropdownMenuItem(value: 'Female', child: Text('Female')),
+                            DropdownMenuItem(value: 'Other', child: Text('Other')),
+                          ],
+                          onChanged: (v) => setDlgState(() => localGender = v),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: bloodCtrl,
-                      decoration: const InputDecoration(labelText: 'Blood Group', hintText: 'O+', isDense: true),
-                    ),
+                  const SizedBox(height: 10),
+
+                  // Blood Group + Marital Status row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: localBloodGroup,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Blood Group', isDense: true),
+                          hint: const Text('Select', style: TextStyle(fontSize: 13)),
+                          items: _bloodGroups
+                              .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                              .toList(),
+                          onChanged: (v) => setDlgState(() => localBloodGroup = v),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: localMarital,
+                          isExpanded: true,
+                          decoration: const InputDecoration(labelText: 'Marital Status', isDense: true),
+                          hint: const Text('Select', style: TextStyle(fontSize: 13)),
+                          items: _maritalOptions
+                              .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                              .toList(),
+                          onChanged: (v) => setDlgState(() => localMarital = v),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Height + Weight row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: heightCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Height (cm)', hintText: '165', isDense: true),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: weightCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Weight (kg)', hintText: '65', isDense: true),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Occupation
+                  DropdownButtonFormField<String>(
+                    value: localOccupation,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Occupation', isDense: true),
+                    hint: const Text('Select occupation', style: TextStyle(fontSize: 13)),
+                    items: _occupations
+                        .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+                        .toList(),
+                    onChanged: (v) => setDlgState(() => localOccupation = v),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+
+                  // ── Section 2: Chronic Conditions ───────────────────────────
+                  _dlgSection('Chronic Conditions', Icons.favorite_border_rounded),
+                  const SizedBox(height: 4),
+                  Text('Tap to select all that apply:', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: _conditionOptions.map((cond) {
+                      final selected = localConditions.contains(cond);
+                      return FilterChip(
+                        label: Text(cond, style: TextStyle(fontSize: 12, color: selected ? Colors.white : AppColors.onSurface)),
+                        selected: selected,
+                        selectedColor: AppColors.primary,
+                        checkmarkColor: Colors.white,
+                        backgroundColor: AppColors.surfaceContainerLow,
+                        side: BorderSide(color: selected ? AppColors.primary : AppColors.outlineVariant),
+                        onSelected: (val) {
+                          setDlgState(() {
+                            if (val) {
+                              localConditions.add(cond);
+                            } else {
+                              localConditions.remove(cond);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 8),
+                  ActionChip(
+                    avatar: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Add custom condition'),
+                    onPressed: () async {
+                      final customCtrl = TextEditingController();
+                      final condition = await showDialog<String>(
+                        context: ctx,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Custom condition'),
+                          content: TextField(
+                            controller: customCtrl,
+                            autofocus: true,
+                            textCapitalization: TextCapitalization.words,
+                            decoration: const InputDecoration(
+                              labelText: 'Condition name',
+                              hintText: 'e.g. Psoriasis',
+                            ),
+                            onSubmitted: (value) =>
+                                Navigator.pop(dialogContext, value.trim()),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              child: const Text('Cancel'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(
+                                dialogContext,
+                                customCtrl.text.trim(),
+                              ),
+                              child: const Text('Add'),
+                            ),
+                          ],
+                        ),
+                      );
+                      customCtrl.dispose();
+                      if (condition != null &&
+                          condition.isNotEmpty &&
+                          !localConditions.any(
+                            (item) => item.toLowerCase() == condition.toLowerCase(),
+                          )) {
+                        setDlgState(() => localConditions.add(condition));
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+
+                  // ── Section 3: Doctor & Medical ─────────────────────────────
+                  _dlgSection('Doctor & Medical Details', Icons.medical_services_outlined),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: doctorCtrl,
+                    decoration: const InputDecoration(labelText: 'Primary Doctor Name', hintText: 'Dr. Sharma', isDense: true),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: localSpecialization,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Doctor Specialization', isDense: true),
+                    hint: const Text('Select specialization', style: TextStyle(fontSize: 13)),
+                    items: _specializations
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis)))
+                        .toList(),
+                    onChanged: (v) => setDlgState(() => localSpecialization = v),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButton<String>(
+                        value: doctorCountryCode,
+                        items: _countryCodes.entries
+                            .map((entry) => DropdownMenuItem(
+                                  value: entry.value,
+                                  child: Text('${entry.value} ${entry.key}'),
+                                ))
+                            .toList(),
+                        onChanged: (value) =>
+                            setDlgState(() => doctorCountryCode = value!),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: doctorPhoneCtrl,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Doctor / Clinic Phone',
+                            hintText: '98765 43210',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: allergiesCtrl,
+                    decoration: const InputDecoration(labelText: 'Known Allergies', hintText: 'e.g. Penicillin, Dust (or None)', isDense: true),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: insuranceCtrl,
+                    decoration: const InputDecoration(labelText: 'Insurance Provider', hintText: 'e.g. Star Health, PMJAY, None', isDense: true),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(),
+
+                  // ── Section 4: Caregiver ────────────────────────────────────
+                  _dlgSection('Caregiver & Emergency Contact', Icons.supervisor_account_rounded),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButton<String>(
+                        value: caregiverCountryCode,
+                        items: _countryCodes.entries
+                            .map((entry) => DropdownMenuItem(
+                                  value: entry.value,
+                                  child: Text('${entry.value} ${entry.key}'),
+                                ))
+                            .toList(),
+                        onChanged: (value) =>
+                            setDlgState(() => caregiverCountryCode = value!),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: caregiverPhoneCtrl,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Caregiver / Emergency Phone',
+                            hintText: '98765 43210',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: caregiverEmailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(labelText: 'Caregiver Email', hintText: 'caregiver@example.com', isDense: true),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              const Divider(),
-              Text('Medical & Doctor Details', style: AppTypography.labelSm(color: AppColors.primary).copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: doctorCtrl,
-                decoration: const InputDecoration(labelText: 'Primary Doctor', hintText: 'Dr. Name, Specialization', isDense: true),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: doctorPhoneCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Doctor Clinic Phone', hintText: '+91 XXXXX XXXXX', isDense: true),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: allergiesCtrl,
-                decoration: const InputDecoration(labelText: 'Known Allergies', hintText: 'e.g. Penicillin, Dust (or None)', isDense: true),
-              ),
-              const SizedBox(height: 16),
-              const Divider(),
-              Text('Caregiver & Emergency Contact', style: AppTypography.labelSm(color: AppColors.primary).copyWith(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: caregiverPhoneCtrl,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(labelText: 'Caregiver / Emergency Phone', hintText: '+91 XXXXX XXXXX', isDense: true),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: caregiverEmailCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Caregiver Email', hintText: 'caregiver@example.com', isDense: true),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
             ),
-            onPressed: () async {
-              final newName = nameCtrl.text.trim();
-              if (newName.isEmpty) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('Please enter your name')),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                final newName = nameCtrl.text.trim();
+                if (newName.isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('Please enter your name')),
+                  );
+                  return;
+                }
+                final newAge = int.tryParse(ageCtrl.text) ?? 0;
+                final updated = UserModel(
+                  id: current?.id ?? 1,
+                  name: newName,
+                  age: newAge,
+                  gender: localGender ?? 'Not specified',
+                  caregiverEmail: caregiverEmailCtrl.text.trim(),
+                  caregiverPhone: caregiverPhoneCtrl.text.trim().isEmpty
+                      ? ''
+                      : '$caregiverCountryCode ${caregiverPhoneCtrl.text.trim()}',
+                  appLockPin: current?.appLockPin ?? '',
+                  createdAt: current?.createdAt ?? DateTime.now().toIso8601String(),
                 );
-                return;
-              }
-              final newAge = int.tryParse(ageCtrl.text) ?? 0;
-              final newGender = genderCtrl.text.trim();
-              final updated = UserModel(
-                id: current?.id ?? 1,
-                name: newName,
-                age: newAge,
-                gender: newGender.isNotEmpty ? newGender : 'Not specified',
-                caregiverEmail: caregiverEmailCtrl.text.trim(),
-                caregiverPhone: caregiverPhoneCtrl.text.trim(),
-                appLockPin: current?.appLockPin ?? '',
-                createdAt: current?.createdAt ?? DateTime.now().toIso8601String(),
-              );
 
-              _bloodGroup = bloodCtrl.text.trim();
-              _doctorName = doctorCtrl.text.trim();
-              _doctorPhone = doctorPhoneCtrl.text.trim();
-              _allergies = allergiesCtrl.text.trim();
-              _emergencyContact = caregiverPhoneCtrl.text.trim();
+                _bloodGroup = localBloodGroup ?? '';
+                _maritalStatus = localMarital ?? '';
+                _height = heightCtrl.text.trim();
+                _weight = weightCtrl.text.trim();
+                _occupation = localOccupation ?? '';
+                _conditions = localConditions;
+                _doctorName = doctorCtrl.text.trim();
+                _doctorSpecialization = localSpecialization ?? '';
+                _doctorPhone = doctorPhoneCtrl.text.trim().isEmpty
+                    ? ''
+                    : '$doctorCountryCode ${doctorPhoneCtrl.text.trim()}';
+                _allergies = allergiesCtrl.text.trim();
+                _insuranceProvider = insuranceCtrl.text.trim();
+                _emergencyContact = caregiverPhoneCtrl.text.trim().isEmpty
+                    ? ''
+                    : '$caregiverCountryCode ${caregiverPhoneCtrl.text.trim()}';
 
-              await _savePrefs();
-              await _controller.updateUserProfile(updated);
+                await _savePrefs();
+                await _controller.updateUserProfile(updated);
 
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) {
-                setState(() {});
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('✓ Patient Profile saved successfully!'),
-                    backgroundColor: AppColors.primary,
-                  ),
-                );
-              }
-            },
-            child: const Text('Save Profile'),
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  setState(() {});
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✓ Patient Profile saved successfully!'),
+                      backgroundColor: AppColors.primary,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Save Profile'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Helper for section headers inside the edit dialog.
+  Widget _dlgSection(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppColors.primary),
+        const SizedBox(width: 6),
+        Text(title, style: AppTypography.labelSm(color: AppColors.primary).copyWith(fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  Widget _infoChip(String label, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              style: AppTypography.labelSm(color: color).copyWith(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
           ),
         ],
       ),
@@ -318,12 +668,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final streak = _controller.adherenceStats['streakDays'] ?? 0;
     final adherenceRate = _controller.adherenceStats['adherenceRate'] ?? 0;
     final historyCount = _controller.allHistoryLogs.length;
+
+    // BMI calculation
+    final heightCm = double.tryParse(_height);
+    final weightKg = double.tryParse(_weight);
+    String? bmiStr;
+    String? bmiLabel;
+    if (heightCm != null && heightCm > 0 && weightKg != null && weightKg > 0) {
+      final bmi = weightKg / ((heightCm / 100) * (heightCm / 100));
+      bmiStr = bmi.toStringAsFixed(1);
+      if (bmi < 18.5) {
+        bmiLabel = 'Underweight';
+      } else if (bmi < 25) {
+        bmiLabel = 'Normal';
+      } else if (bmi < 30) {
+        bmiLabel = 'Overweight';
+      } else {
+        bmiLabel = 'Obese';
+      }
+    }
+
     final profileFieldsCompleted = [
       displayName,
       if (_bloodGroup.isNotEmpty) _bloodGroup,
       if (_doctorName.isNotEmpty) _doctorName,
       if (_allergies.isNotEmpty) _allergies,
       if (caregiverPhone.isNotEmpty) caregiverPhone,
+      if (_maritalStatus.isNotEmpty) _maritalStatus,
+      if (_height.isNotEmpty) _height,
+      if (_conditions.isNotEmpty) _conditions,
+      if (_occupation.isNotEmpty) _occupation,
     ].length;
 
     return Scaffold(
@@ -375,9 +749,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Stack(
                         children: [
                           CircleAvatar(
-                            radius: 34,
+                            radius: 30,
                             backgroundColor: AppColors.primaryFixed,
-                            child: const Icon(Icons.person_rounded, size: 40, color: AppColors.primary),
+                            child: const Icon(Icons.person_rounded, size: 36, color: AppColors.primary),
                           ),
                           Positioned(
                             bottom: 0,
@@ -388,68 +762,93 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 color: AppColors.adherenceGreen,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.check, color: Colors.white, size: 12),
+                              child: const Icon(Icons.check, color: Colors.white, size: 10),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (displayName != null) ...[
-                              Text(
-                                displayName,
-                                style: AppTypography.headlineSm(color: AppColors.onSurface).copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                ),
+                            Text(
+                              displayName ?? 'Personal Profile',
+                              style: AppTypography.headlineSm(color: AppColors.onSurface).copyWith(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
                               ),
-                              const SizedBox(height: 3),
-                              Text(
-                                [
-                                  if (age > 0) 'Age $age',
-                                  ?gender,
-                                  if (_bloodGroup.isNotEmpty) 'Blood: $_bloodGroup',
-                                ].join(' • '),
-                                style: AppTypography.bodySm(color: AppColors.onSurfaceVariant),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              displayName != null
+                                  ? [
+                                      if (age > 0) 'Age $age',
+                                      ?gender,
+                                      if (_bloodGroup.isNotEmpty) _bloodGroup,
+                                      if (_maritalStatus.isNotEmpty) _maritalStatus,
+                                    ].join(' · ')
+                                  : 'No details added yet',
+                              style: AppTypography.bodySm(
+                                color: displayName != null ? AppColors.onSurfaceVariant : AppColors.outline,
                               ),
-                            ] else ...[
-                              Text(
-                                'Personal Profile',
-                                style: AppTypography.headlineSm(color: AppColors.onSurface).copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                'No details added yet',
-                                style: AppTypography.bodySm(color: AppColors.outline),
-                              ),
-                            ],
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ],
                         ),
                       ),
+                      const SizedBox(width: 8),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
-                        icon: Icon(displayName != null ? Icons.edit_rounded : Icons.person_add_rounded, size: 15),
+                        icon: Icon(displayName != null ? Icons.edit_rounded : Icons.person_add_rounded, size: 14),
                         label: Text(
                           displayName != null ? 'Edit' : 'Add Details',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                         ),
                         onPressed: _showEditProfileDialog,
                       ),
                     ],
                   ),
+                  if (bmiStr != null || _occupation.isNotEmpty || _height.isNotEmpty || _weight.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (_height.isNotEmpty || _weight.isNotEmpty)
+                          _infoChip(
+                            [
+                              if (_height.isNotEmpty) '$_height cm',
+                              if (_weight.isNotEmpty) '$_weight kg',
+                            ].join(' · '),
+                            Icons.straighten_rounded,
+                            AppColors.primary,
+                          ),
+                        if (bmiStr != null)
+                          _infoChip(
+                            'BMI $bmiStr ($bmiLabel)',
+                            Icons.monitor_weight_outlined,
+                            bmiLabel == 'Normal' ? AppColors.adherenceGreenText : AppColors.alertCoral,
+                          ),
+                        if (_occupation.isNotEmpty)
+                          _infoChip(
+                            _occupation,
+                            Icons.work_outline_rounded,
+                            AppColors.onSurfaceVariant,
+                          ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   const Divider(height: 1),
                   const SizedBox(height: 14),
@@ -471,7 +870,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 Text('Primary Physician', style: AppTypography.labelSm(color: AppColors.outline).copyWith(fontSize: 11)),
                                 Text(
                                   _doctorName.isNotEmpty
-                                      ? (_doctorPhone.isNotEmpty ? '$_doctorName · $_doctorPhone' : _doctorName)
+                                      ? [
+                                          _doctorName,
+                                          if (_doctorSpecialization.isNotEmpty) _doctorSpecialization,
+                                          if (_doctorPhone.isNotEmpty) _doctorPhone,
+                                        ].join(' · ')
                                       : 'Tap to add doctor & clinic details',
                                   style: AppTypography.labelMd(
                                     color: _doctorName.isNotEmpty ? AppColors.onSurface : AppColors.outline,
@@ -485,7 +888,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
 
                   // Caregiver Row (interactive tap-to-add)
                   InkWell(
@@ -534,7 +936,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            profileFieldsCompleted >= 3
+                            profileFieldsCompleted >= 5
                                 ? 'Your medical profile is ready for quick reference.'
                                 : 'Add medical details so this screen is useful in an emergency.',
                             style: AppTypography.bodySm(color: AppColors.onSurfaceVariant),
@@ -542,14 +944,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         TextButton(
                           onPressed: _showEditProfileDialog,
-                          child: Text(profileFieldsCompleted >= 3 ? 'Review' : 'Complete'),
+                          child: Text(profileFieldsCompleted >= 5 ? 'Review' : 'Complete'),
                         ),
                       ],
                     ),
                   ),
 
+                  // Insurance row
+                  if (_insuranceProvider.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Icon(Icons.shield_outlined, size: 18, color: AppColors.secondary),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Health Insurance', style: AppTypography.labelSm(color: AppColors.outline).copyWith(fontSize: 11)),
+                              Text(_insuranceProvider, style: AppTypography.labelMd(color: AppColors.onSurface).copyWith(fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
                   // Known Allergies
                   if (_allergies.isNotEmpty) ...[
+                    const SizedBox(height: 10),
                     Row(
                       children: [
                         const Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.alertCoral),
@@ -565,12 +988,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
-                  ] else ...[
+                  ],
+
+                  // Chronic Conditions chips
+                  if (_conditions.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.favorite_border_rounded, size: 18, color: AppColors.alertCoral),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Chronic Conditions', style: AppTypography.labelSm(color: AppColors.outline).copyWith(fontSize: 11)),
+                              const SizedBox(height: 4),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: _conditions.map((c) => Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.alertCoral.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: AppColors.alertCoral.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Text(c, style: AppTypography.labelSm(color: AppColors.alertCoral).copyWith(fontSize: 11)),
+                                )).toList(),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else if (!_allergies.isNotEmpty && displayName == null) ...[
                     Row(
                       children: [
                         const Icon(Icons.info_outline_rounded, size: 18, color: AppColors.outline),
                         const SizedBox(width: 10),
-                        Text('No details added yet. Tap edit to fill in your profile.', style: AppTypography.bodySm(color: AppColors.outline)),
+                        Expanded(child: Text('No details added yet. Tap edit to fill in your profile.', style: AppTypography.bodySm(color: AppColors.outline))),
                       ],
                     ),
                   ],
@@ -724,71 +1181,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
             // Alarm Tone
             Container(
               margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: AppColors.surfaceContainerLowest,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Alarm Tone', style: AppTypography.labelMd(color: AppColors.onSurface)),
-                      Text('Choose an app tone or one from this device', style: AppTypography.bodySm(color: AppColors.onSurfaceVariant)),
-                    ],
+                      children: [
+                        Text('Alarm Tone', style: AppTypography.labelMd(color: AppColors.onSurface)),
+                        const SizedBox(height: 2),
+                        Text(
+                          _deviceAlarmSoundUri != null
+                              ? 'Custom device alarm tone selected'
+                              : 'Default system alarm tone',
+                          style: AppTypography.bodySm(color: AppColors.onSurfaceVariant),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      DropdownButton<String>(
-                        value: _deviceAlarmSoundUri == null ? _alarmSound : 'Device alarm tone',
-                        underline: const SizedBox(),
-                        items: ['Serene Bell', 'Gentle Chime', 'Clinic Pulse', 'Harbor Chime', 'Soft Pulse', 'Device alarm tone'].map((t) => DropdownMenuItem(value: t, child: Text(t, style: AppTypography.labelSm(color: AppColors.primary)))).toList(),
-                        onChanged: (val) async {
-                          if (val == 'Device alarm tone') {
-                            final uri = await NotificationService.instance.pickDeviceAlarmSound(_deviceAlarmSoundUri);
-                            if (uri != null && mounted) {
-                              setState(() => _deviceAlarmSoundUri = uri);
-                              await _savePrefs();
-                            }
-                          } else if (val != null) {
+                      TextButton.icon(
+                        onPressed: () => NotificationService.instance.previewAlarmSound(
+                          'Device alarm tone',
+                          customToneUri: _deviceAlarmSoundUri,
+                        ),
+                        icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                        label: const Text('Preview'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          minimumSize: Size.zero,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final uri = await NotificationService.instance.pickDeviceAlarmSound(_deviceAlarmSoundUri);
+                          if (uri != null && mounted) {
                             setState(() {
-                              _alarmSound = val;
-                              _deviceAlarmSoundUri = null;
+                              _deviceAlarmSoundUri = uri;
+                              _alarmSound = 'Device alarm tone';
                             });
                             await _savePrefs();
                           }
                         },
-                      ),
-                      TextButton.icon(
-                        onPressed: () => NotificationService.instance.previewAlarmSound(
-                          _alarmSound,
-                          customToneUri: _deviceAlarmSoundUri,
-                        ),
-                        icon: const Icon(Icons.play_arrow_rounded, size: 16),
-                        label: const Text('Preview'),
-                        style: TextButton.styleFrom(
+                        icon: const Icon(Icons.music_note_rounded, size: 15),
+                        label: const Text('Change'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
                           minimumSize: Size.zero,
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => NotificationService.instance.testAlarm(
-                          _alarmSound,
-                          customToneUri: _deviceAlarmSoundUri,
-                        ),
-                        icon: const Icon(Icons.alarm_rounded, size: 16),
-                        label: const Text('Test alarm'),
-                        style: TextButton.styleFrom(
-                          minimumSize: Size.zero,
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                       ),
                     ],
@@ -861,6 +1315,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   return;
                 }
                 setState(() => _caregiverSync = v);
+                await _savePrefs();
+                await _controller.resyncCaregiverAlerts();
+              },
+            ),
+            _buildToggleTile(
+              'Daily report at 11 PM',
+              'SMS a daily medication summary to the saved caregiver',
+              _dailyCaregiverReport,
+              (v) async {
+                final caregiverPhone = _controller.user?.caregiverPhone?.trim() ?? '';
+                if (v && caregiverPhone.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Add a caregiver phone number in your profile first.')),
+                  );
+                  return;
+                }
+                if (v && !await NotificationService.instance.requestCaregiverSmsPermission()) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('SMS permission is required to send daily reports.')),
+                    );
+                  }
+                  return;
+                }
+                setState(() => _dailyCaregiverReport = v);
                 await _savePrefs();
                 await _controller.resyncCaregiverAlerts();
               },

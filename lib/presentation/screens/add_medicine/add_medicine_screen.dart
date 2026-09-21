@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:medimate/core/constants/app_colors.dart';
 import 'package:medimate/core/constants/app_typography.dart';
 import 'package:medimate/core/database/database_helper.dart';
@@ -7,6 +6,7 @@ import 'package:medimate/data/models/medicine_model.dart';
 import 'package:medimate/data/models/schedule_model.dart';
 import 'package:medimate/presentation/controllers/app_controller.dart';
 import 'package:medimate/presentation/widgets/pill_visualizer.dart';
+import 'package:medimate/presentation/widgets/date_range_calendar_view.dart';
 import 'package:medimate/presentation/widgets/interaction_warning_dialog.dart';
 import 'package:medimate/presentation/widgets/dosecare_logo.dart';
 
@@ -32,16 +32,14 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   String _selectedColor = 'teal';
   String _selectedFood = 'With Food';
   String _selectedFrequency = 'Every day';
+  DateTime _courseStartDate = DateTime.now();
+  DateTime _courseEndDate = DateTime.now().add(const Duration(days: 6));
   // A practical starting schedule that can be edited, removed, or expanded.
   // PRN medicines still deliberately create no scheduled reminders.
   final List<Map<String, dynamic>> _reminderSlots = [
     {'label': 'Morning', 'time': '08:00', 'icon': Icons.wb_sunny_rounded, 'color': AppColors.primary},
     {'label': 'Evening', 'time': '20:00', 'icon': Icons.bedtime_rounded, 'color': AppColors.secondary},
   ];
-
-  final ImagePicker _picker = ImagePicker();
-  bool _isScanning = false;
-  String? _scannedPrescriptionPath;
 
   String _storeTime(TimeOfDay time) => '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
 
@@ -63,118 +61,6 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     super.dispose();
   }
 
-  Future<void> _handleScanPrescription() async {
-    // Offer Camera or Quick Presets
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Scan or Select Preset',
-                  style: AppTypography.headlineSm(color: AppColors.onSurface).copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Use your camera to scan an Rx label, or pick a sample preset to test:',
-                  style: AppTypography.bodySm(color: AppColors.onSurfaceVariant),
-                ),
-                const SizedBox(height: 16),
-                ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: AppColors.primaryContainer,
-                    child: Icon(Icons.camera_alt_rounded, color: AppColors.primary),
-                  ),
-                  title: const Text('Open Camera Scanner'),
-                  subtitle: const Text('Capture bottle label with OCR simulation'),
-                  onTap: () => Navigator.pop(ctx, 'camera'),
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: AppColors.secondaryContainer,
-                    child: Icon(Icons.medication_liquid_rounded, color: AppColors.secondary),
-                  ),
-                  title: const Text('Amoxicillin 500mg'),
-                  subtitle: const Text('Capsule • Teal • Antibiotic'),
-                  onTap: () => Navigator.pop(ctx, 'amox'),
-                ),
-                ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: AppColors.surfaceContainerHigh,
-                    child: Icon(Icons.circle_outlined, color: AppColors.primary),
-                  ),
-                  title: const Text('Paracetamol 650mg'),
-                  subtitle: const Text('Round • White • Pain & Fever'),
-                  onTap: () => Navigator.pop(ctx, 'para'),
-                ),
-                ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: AppColors.adherenceGreenLight,
-                    child: Icon(Icons.egg_outlined, color: AppColors.adherenceGreen),
-                  ),
-                  title: const Text('Metformin 500mg'),
-                  subtitle: const Text('Oval • White • Blood Glucose'),
-                  onTap: () => Navigator.pop(ctx, 'met'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    if (choice == null) return;
-
-    if (choice == 'amox') {
-      _applyOcrData('Amoxicillin 500mg', '500', 'mg', 'capsule', 'teal', 'AMOX 500');
-    } else if (choice == 'para') {
-      _applyOcrData('Paracetamol 650mg', '650', 'mg', 'round', 'white', 'PARA 650');
-    } else if (choice == 'met') {
-      _applyOcrData('Metformin 500mg', '500', 'mg', 'oval', 'white', 'MET 500');
-    } else if (choice == 'camera') {
-      setState(() => _isScanning = true);
-      try {
-        final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
-        if (photo != null) {
-          _scannedPrescriptionPath = photo.path;
-          _applyOcrData('Amoxicillin Clavulanate', '500', 'mg', 'capsule', 'teal', 'AMOX 500');
-        } else {
-          _applyOcrData('Amoxicillin 500mg', '500', 'mg', 'capsule', 'teal', 'AMOX 500');
-        }
-      } catch (e) {
-        _applyOcrData('Amoxicillin 500mg', '500', 'mg', 'capsule', 'teal', 'AMOX 500');
-      } finally {
-        setState(() => _isScanning = false);
-      }
-    }
-  }
-
-  void _applyOcrData(String name, String strength, String unit, String shape, String color, String imprint) {
-    setState(() {
-      _nameController.text = name;
-      _strengthController.text = strength;
-      _selectedUnit = unit;
-      _selectedShape = shape;
-      _selectedColor = color;
-      _imprintController.text = imprint;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Prescription filled! Set to $name ($strength $unit).'),
-        backgroundColor: AppColors.adherenceGreen,
-      ),
-    );
-  }
-
   Future<void> _saveMedicine() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -187,7 +73,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     final interactions = AppController.instance.checkSafety(name);
     if (interactions.isNotEmpty) {
       final proceed = await InteractionWarningDialog.show(context, interactions: interactions);
-      if (proceed != true) return;
+      if (proceed != true || !mounted) return;
     }
 
     // 2. Build model
@@ -210,11 +96,21 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       );
       return;
     }
+    final isSpecificDates = _selectedFrequency == 'Specific dates';
     final frequencyType = isPrn
         ? 'as_needed'
         : _selectedFrequency == 'Every 2 days'
             ? 'alternate'
-            : 'daily';
+            : isSpecificDates
+                ? 'specific_dates'
+                : 'daily';
+
+    final startDateStr = isSpecificDates
+        ? '${_courseStartDate.year.toString().padLeft(4, '0')}-${_courseStartDate.month.toString().padLeft(2, '0')}-${_courseStartDate.day.toString().padLeft(2, '0')}'
+        : null;
+    final endDateStr = isSpecificDates
+        ? '${_courseEndDate.year.toString().padLeft(4, '0')}-${_courseEndDate.month.toString().padLeft(2, '0')}-${_courseEndDate.day.toString().padLeft(2, '0')}'
+        : null;
 
     // PRN doses are logged manually and deliberately do not create an alarm.
     final medId = isPrn
@@ -224,6 +120,8 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
             timeOfDay: _reminderSlots.first['time'].toString(),
             periodLabel: _reminderSlots.first['label'].toString(),
             frequencyType: frequencyType,
+            startDate: startDateStr,
+            endDate: endDateStr,
           );
 
     // Save additional slots if more than 1
@@ -238,19 +136,15 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
             periodLabel: slot['label'].toString(),
             doseCount: 1,
             frequencyType: frequencyType,
+            startDate: startDateStr,
+            endDate: endDateStr,
           ),
         );
       }
       await AppController.instance.refreshData();
     }
 
-    if (_scannedPrescriptionPath != null) {
-      await DatabaseHelper.instance.insertPrescription(
-        medicineId: medId,
-        imagePath: _scannedPrescriptionPath,
-        rawOcrText: '$name $strength $_selectedUnit',
-      );
-    }
+
 
     // Reset controllers
     _nameController.clear();
@@ -305,11 +199,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. OCR Scanner Banner
-              _buildOcrScannerBanner(),
-              const SizedBox(height: 20),
-
-              // 3. Medication Identity Form
+              // Medication Identity Form
               _buildIdentitySection(),
               const SizedBox(height: 20),
 
@@ -349,92 +239,59 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     );
   }
 
-  Widget _buildOcrScannerBanner() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.primaryContainer, AppColors.secondary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.document_scanner_rounded, color: Colors.white, size: 26),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Scan Prescription',
-                  style: AppTypography.headlineSm(color: Colors.white),
-                ),
-                Text(
-                  'Auto-fill Rx, strength & instructions in 2s',
-                  style: AppTypography.bodySm(color: Colors.white.withValues(alpha: 0.9)),
-                ),
-              ],
-            ),
-          ),
-          ElevatedButton.icon(
-            onPressed: _isScanning ? null : _handleScanPrescription,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.primary,
-              minimumSize: const Size(100, 40),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-            ),
-            icon: _isScanning
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2),
-                  )
-                : const Icon(Icons.photo_camera_rounded, size: 18, color: AppColors.primary),
-            label: Text(
-              'Scan Bottle',
-              style: AppTypography.labelSm(color: AppColors.primary).copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // Comprehensive medicine database for auto-search
   static const List<String> _medicineDatabase = [
-    // Antibiotics
+    // ─── Antibiotics ───────────────────────────────────────────────────────────
     'Amoxicillin 250mg', 'Amoxicillin 500mg', 'Amoxicillin-Clavulanate 625mg',
     'Azithromycin 250mg', 'Azithromycin 500mg',
     'Ciprofloxacin 250mg', 'Ciprofloxacin 500mg',
     'Doxycycline 100mg', 'Metronidazole 400mg', 'Metronidazole 500mg',
     'Cephalexin 250mg', 'Cephalexin 500mg', 'Clindamycin 300mg',
     'Levofloxacin 250mg', 'Levofloxacin 500mg', 'Trimethoprim-Sulfamethoxazole 480mg',
-    // Pain & Fever
+    'Ofloxacin 200mg', 'Ofloxacin 400mg', 'Norfloxacin 400mg',
+    'Cefixime 100mg', 'Cefixime 200mg', 'Cefpodoxime 100mg', 'Cefpodoxime 200mg',
+    'Nitrofurantoin 50mg', 'Nitrofurantoin 100mg',
+    'Clarithromycin 250mg', 'Clarithromycin 500mg',
+    'Erythromycin 250mg', 'Erythromycin 500mg',
+    'Piperacillin-Tazobactam 4.5g Injection',
+    // Indian branded antibiotics
+    'Augmentin 625mg', 'Azee 500mg', 'Cifran 500mg', 'Ciplox 500mg',
+    'Mox 500mg', 'Taxim-O 200mg', 'Zenflox 200mg',
+
+    // ─── Pain & Fever ──────────────────────────────────────────────────────────
     'Paracetamol 325mg', 'Paracetamol 500mg', 'Paracetamol 650mg',
     'Ibuprofen 200mg', 'Ibuprofen 400mg', 'Ibuprofen 600mg',
     'Aspirin 75mg', 'Aspirin 150mg', 'Aspirin 325mg',
     'Diclofenac 50mg', 'Diclofenac 75mg', 'Naproxen 250mg', 'Naproxen 500mg',
     'Tramadol 50mg', 'Tramadol 100mg', 'Mefenamic Acid 250mg', 'Mefenamic Acid 500mg',
-    // Diabetes
+    'Aceclofenac 100mg', 'Aceclofenac + Paracetamol', 'Ketorolac 10mg',
+    'Etoricoxib 60mg', 'Etoricoxib 90mg', 'Celecoxib 100mg', 'Celecoxib 200mg',
+    'Tapentadol 50mg', 'Tapentadol 100mg',
+    // Indian branded pain & fever
+    'Dolo 650mg', 'Calpol 500mg', 'Crocin 500mg', 'Crocin 650mg',
+    'Combiflam Tablet', 'Combiflam Plus',
+    'Voveran 50mg', 'Zerodol 100mg', 'Zerodol-P', 'Hifenac-P',
+    'Brufen 400mg', 'Nise 100mg',
+
+    // ─── Diabetes ──────────────────────────────────────────────────────────────
     'Metformin 500mg', 'Metformin 850mg', 'Metformin 1000mg',
     'Glibenclamide 5mg', 'Glimepiride 1mg', 'Glimepiride 2mg', 'Glimepiride 4mg',
     'Voglibose 0.2mg', 'Voglibose 0.3mg', 'Sitagliptin 100mg', 'Teneligliptin 20mg',
-    // Blood Pressure & Heart
+    'Dapagliflozin 5mg', 'Dapagliflozin 10mg', 'Empagliflozin 10mg', 'Empagliflozin 25mg',
+    'Canagliflozin 100mg', 'Linagliptin 5mg', 'Saxagliptin 5mg', 'Alogliptin 25mg',
+    'Pioglitazone 15mg', 'Pioglitazone 30mg', 'Gliclazide 30mg', 'Gliclazide 80mg',
+    // Indian diabetes brands
+    'Glycomet 500mg', 'Glycomet 850mg', 'Glycomet GP1', 'Glycomet GP2',
+    'Jalra-M 50/500mg', 'Janumet 50/500mg', 'Glucophage 500mg',
+    'Galvus 50mg', 'Trajenta 5mg', 'Forxiga 10mg', 'Jardiance 10mg',
+    // Insulins
+    'Insulin Regular 40IU/ml', 'Insulin Regular 100IU/ml',
+    'Insulin NPH 40IU/ml', 'Insulin NPH 100IU/ml',
+    'Insulin Glargine (Lantus) 100IU/ml', 'Insulin Detemir 100IU/ml',
+    'Insulin Lispro 100IU/ml', 'Insulin Aspart 100IU/ml',
+    'Huminsulin 30/70', 'Novomix 30 FlexPen',
+
+    // ─── Blood Pressure & Heart ────────────────────────────────────────────────
     'Amlodipine 2.5mg', 'Amlodipine 5mg', 'Amlodipine 10mg',
     'Atenolol 25mg', 'Atenolol 50mg', 'Atenolol 100mg',
     'Losartan 25mg', 'Losartan 50mg', 'Losartan 100mg',
@@ -444,37 +301,216 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     'Furosemide 20mg', 'Furosemide 40mg', 'Spironolactone 25mg',
     'Rosuvastatin 5mg', 'Rosuvastatin 10mg', 'Rosuvastatin 20mg',
     'Atorvastatin 10mg', 'Atorvastatin 20mg', 'Atorvastatin 40mg',
-    // Gastro
+    'Carvedilol 3.125mg', 'Carvedilol 6.25mg', 'Carvedilol 12.5mg',
+    'Bisoprolol 2.5mg', 'Bisoprolol 5mg', 'Bisoprolol 10mg',
+    'Nebivolol 5mg', 'Olmesartan 20mg', 'Olmesartan 40mg',
+    'Valsartan 40mg', 'Valsartan 80mg', 'Valsartan 160mg',
+    'Candesartan 4mg', 'Candesartan 8mg', 'Candesartan 16mg',
+    'Hydrochlorothiazide 12.5mg', 'Hydrochlorothiazide 25mg',
+    'Chlorthalidone 12.5mg', 'Chlorthalidone 25mg',
+    'Nifedipine 10mg', 'Nifedipine 20mg Retard',
+    'Digoxin 0.25mg', 'Isosorbide Dinitrate 5mg', 'Isosorbide Mononitrate 20mg',
+    'Clopidogrel 75mg', 'Warfarin 1mg', 'Warfarin 2mg', 'Warfarin 5mg',
+    'Rivaroxaban 10mg', 'Rivaroxaban 15mg', 'Rivaroxaban 20mg',
+    'Apixaban 2.5mg', 'Apixaban 5mg',
+    // Indian BP brands
+    'Telma 40mg', 'Telma-H 40mg', 'Telma-AM 40mg',
+    'Stamlo 5mg', 'Stamlo Beta', 'Amlokind 5mg', 'Tazloc 40mg',
+    'Olsar 20mg', 'Valent 80mg', 'Cardivas 6.25mg',
+
+    // ─── Gastroenterology ─────────────────────────────────────────────────────
     'Omeprazole 10mg', 'Omeprazole 20mg', 'Omeprazole 40mg',
     'Pantoprazole 20mg', 'Pantoprazole 40mg', 'Rabeprazole 20mg',
     'Domperidone 10mg', 'Ondansetron 4mg', 'Ondansetron 8mg',
     'Ranitidine 150mg', 'Famotidine 20mg', 'Esomeprazole 20mg', 'Esomeprazole 40mg',
-    // Respiratory / Allergy
+    'Lansoprazole 15mg', 'Lansoprazole 30mg',
+    'Metoclopramide 10mg', 'Itopride 50mg', 'Mosapride 2.5mg', 'Mosapride 5mg',
+    'Loperamide 2mg', 'Dicyclomine 10mg', 'Mebeverine 135mg', 'Drotaverine 40mg',
+    'Bisacodyl 5mg', 'Senna 7.5mg', 'Lactulose 10g/15ml',
+    'Probiotics (Saccharomyces boulardii)', 'Probiotics (Lactobacillus)', 'ORS Sachet',
+    // Indian gastro brands
+    'Omez 20mg', 'Pan 40mg', 'Pantop 40mg', 'Nexpro 40mg',
+    'Razo 20mg', 'Nexpro-L', 'Pan-D Capsule', 'Gelusil Tablet',
+    'Digene Tablet', 'Digene Gel 200ml', 'Eno Fruit Salt Sachet',
+    'Becosules Capsule', 'Normogesic Tablet',
+
+    // ─── Respiratory & Allergy ────────────────────────────────────────────────
     'Cetirizine 5mg', 'Cetirizine 10mg', 'Fexofenadine 120mg', 'Fexofenadine 180mg',
-    'Loratadine 10mg', 'Montelukast 4mg', 'Montelukast 5mg', 'Montelukast 10mg',
+    'Loratadine 10mg', 'Desloratadine 5mg', 'Levocetirizine 2.5mg', 'Levocetirizine 5mg',
+    'Chlorpheniramine 4mg', 'Hydroxyzine 10mg', 'Hydroxyzine 25mg',
+    'Montelukast 4mg', 'Montelukast 5mg', 'Montelukast 10mg',
     'Salbutamol 2mg', 'Salbutamol 4mg', 'Salbutamol Inhaler 100mcg',
     'Budesonide Inhaler 200mcg', 'Fluticasone Inhaler 125mcg',
-    // Vitamins & Supplements
+    'Ipratropium Inhaler 20mcg', 'Tiotropium 18mcg',
+    'Salmeterol + Fluticasone Inhaler', 'Formoterol + Budesonide Inhaler',
+    'Theophylline 100mg', 'Theophylline 200mg', 'Theophylline 300mg',
+    'Dextromethorphan 15mg', 'Bromhexine 8mg', 'Ambroxol 30mg', 'Ambroxol 75mg',
+    'Codeine 10mg',
+    // Indian respiratory brands
+    'Asthalin Inhaler 100mcg', 'Budecort Inhaler 200mcg',
+    'Foracort 400 Inhaler', 'Seroflo 250 Inhaler',
+    'Ascoril LS Syrup 100ml', 'Grilinctus-BM Syrup 100ml',
+    'Phensedyl Cough Syrup 100ml', 'Benadryl Cough Syrup 100ml',
+    'Alex Syrup 100ml', 'Solvin Cold Tablet',
+
+    // ─── Vitamins & Supplements ───────────────────────────────────────────────
     'Vitamin D3 1000 IU', 'Vitamin D3 2000 IU', 'Vitamin D3 60000 IU',
     'Vitamin B12 500mcg', 'Vitamin B12 1000mcg',
     'Calcium + Vitamin D3 500mg', 'Ferrous Sulfate 200mg',
     'Folic Acid 400mcg', 'Folic Acid 5mg', 'Zinc 10mg', 'Zinc 20mg',
     'Multivitamin Daily', 'Omega-3 Fish Oil 1000mg',
-    // Thyroid
-    'Levothyroxine 25mcg', 'Levothyroxine 50mcg', 'Levothyroxine 75mcg', 'Levothyroxine 100mcg',
-    // Mental Health / Neuro
+    'Iron + Folic Acid', 'Vitamin C 500mg', 'Vitamin E 400 IU',
+    'Biotin 5mg', 'Biotin 10mg', 'B-Complex Tablet',
+    'Vitamin B1 (Thiamine) 100mg', 'Pyridoxine (B6) 10mg', 'Niacin 500mg',
+    'Magnesium Oxide 400mg', 'Magnesium Citrate 400mg',
+    'Chromium 200mcg', 'Selenium 200mcg', 'Copper 2mg',
+    'Coenzyme Q10 100mg', 'Lycopene 5000mcg',
+    // Indian supplement brands
+    'Becosules Z Capsule', 'Neurobion Forte Tablet', 'Revital H Capsule',
+    'Supradyn Daily Tablet', 'Shelcal 500mg', 'Calcidol 500mg',
+    'Evion 400 Capsule', 'Surbex-Z Tablet', 'Zincovit Tablet',
+    'Calcimax Forte', 'HealthOK Tablet', 'Limcee 500mg',
+
+    // ─── Thyroid ──────────────────────────────────────────────────────────────
+    'Levothyroxine 12.5mcg', 'Levothyroxine 25mcg',
+    'Levothyroxine 50mcg', 'Levothyroxine 75mcg', 'Levothyroxine 100mcg',
+    'Levothyroxine 125mcg', 'Levothyroxine 150mcg',
+    'Carbimazole 5mg', 'Carbimazole 10mg', 'Propylthiouracil 50mg',
+    // Indian thyroid brands
+    'Eltroxin 50mcg', 'Thyronorm 25mcg', 'Thyronorm 50mcg', 'Thyronorm 75mcg',
+    'Thyronorm 100mcg', 'Thyrox 50mcg', 'Neomercazole 5mg',
+
+    // ─── Mental Health & Neurology ────────────────────────────────────────────
     'Sertraline 25mg', 'Sertraline 50mg', 'Sertraline 100mg',
     'Escitalopram 5mg', 'Escitalopram 10mg', 'Escitalopram 20mg',
+    'Fluoxetine 10mg', 'Fluoxetine 20mg', 'Paroxetine 12.5mg', 'Paroxetine 25mg',
+    'Venlafaxine 37.5mg', 'Venlafaxine 75mg', 'Duloxetine 20mg', 'Duloxetine 60mg',
+    'Mirtazapine 7.5mg', 'Mirtazapine 15mg', 'Mirtazapine 30mg',
     'Alprazolam 0.25mg', 'Alprazolam 0.5mg', 'Clonazepam 0.25mg', 'Clonazepam 0.5mg',
+    'Diazepam 2mg', 'Diazepam 5mg', 'Lorazepam 0.5mg', 'Lorazepam 1mg',
     'Gabapentin 100mg', 'Gabapentin 300mg', 'Pregabalin 75mg', 'Pregabalin 150mg',
-    'Levodopa-Carbidopa 100/25mg',
-    // Others
-    'Hydroxychloroquine 200mg', 'Prednisolone 5mg', 'Prednisolone 10mg',
-    'Methylcobalamin 500mcg', 'Aceclofenac 100mg', 'Pantoprazole + Domperidone',
-    'Clopidogrel 75mg', 'Warfarin 1mg', 'Warfarin 2mg', 'Warfarin 5mg',
-    'Insulin Regular', 'Insulin NPH', 'Insulin Glargine',
-    // Liquid, Syrups & Suspensions
-    'Cough Syrup 100ml', 'Benadryl Cough Syrup 100ml',
+    'Quetiapine 25mg', 'Quetiapine 50mg', 'Quetiapine 100mg',
+    'Olanzapine 2.5mg', 'Olanzapine 5mg', 'Olanzapine 10mg',
+    'Risperidone 0.5mg', 'Risperidone 1mg', 'Risperidone 2mg',
+    'Haloperidol 0.5mg', 'Haloperidol 1.5mg', 'Lithium 300mg',
+    'Valproate 200mg', 'Valproate 500mg', 'Carbamazepine 100mg', 'Carbamazepine 200mg',
+    'Phenytoin 50mg', 'Phenytoin 100mg', 'Levetiracetam 250mg', 'Levetiracetam 500mg',
+    'Donepezil 5mg', 'Donepezil 10mg', 'Memantine 5mg', 'Memantine 10mg',
+    'Levodopa-Carbidopa 100/25mg', 'Pramipexole 0.25mg', 'Pramipexole 0.5mg',
+    'Melatonin 1mg', 'Melatonin 3mg', 'Melatonin 5mg', 'Zolpidem 5mg', 'Zolpidem 10mg',
+    'Amitriptyline 10mg', 'Amitriptyline 25mg', 'Nortriptyline 10mg', 'Nortriptyline 25mg',
+    // Indian neuro/mental brands
+    'Risdone 2mg', 'Olanex 5mg', 'Oleanz 5mg', 'Serenace 1.5mg',
+    'Nexito 10mg', 'Stalopam 10mg', 'Zoloft 50mg',
+
+    // ─── Women's Health ───────────────────────────────────────────────────────
+    'Progesterone 100mg', 'Progesterone 200mg', 'Progesterone 400mg',
+    'Dydrogesterone 10mg', 'Norethisterone 5mg',
+    'Estradiol Valerate 1mg', 'Estradiol Valerate 2mg',
+    'Mifepristone 200mg', 'Misoprostol 200mcg',
+    'Clomiphene 25mg', 'Clomiphene 50mg', 'Letrozole 2.5mg',
+    'Folic Acid 5mg (Pregnancy)', 'Iron Sucrose Injection 100mg',
+    'Calcium + Folic Acid + Vitamin D3', 'Ferrous Ascorbate 100mg',
+    // Indian women's health brands
+    'Susten 200mg', 'Susten 400mg', 'Duphaston 10mg',
+    'Ovral-G Tablet', 'Mala-D Tablet', 'Unwanted 72 Tablet',
+    'Progynova 1mg', 'Progynova 2mg', 'Primolut-N 5mg',
+    'Clofert 50mg', 'Fertyl 50mg',
+
+    // ─── Urology & Kidney ─────────────────────────────────────────────────────
+    'Tamsulosin 0.2mg', 'Tamsulosin 0.4mg', 'Alfuzosin 10mg',
+    'Finasteride 1mg', 'Finasteride 5mg', 'Dutasteride 0.5mg',
+    'Sildenafil 25mg', 'Sildenafil 50mg', 'Sildenafil 100mg',
+    'Tadalafil 5mg', 'Tadalafil 10mg', 'Tadalafil 20mg',
+    'Desmopressin 0.1mg', 'Tolterodine 2mg', 'Solifenacin 5mg',
+    'Allopurinol 100mg', 'Allopurinol 300mg', 'Febuxostat 40mg', 'Febuxostat 80mg',
+
+    // ─── Skin & Dermatology ───────────────────────────────────────────────────
+    'Clotrimazole 1% Cream 15g', 'Miconazole 2% Cream 15g',
+    'Terbinafine 1% Cream 15g', 'Ketoconazole 2% Cream 15g',
+    'Betamethasone + Clotrimazole Cream', 'Clobetasol 0.05% Cream',
+    'Hydrocortisone 1% Cream', 'Mometasone 0.1% Cream',
+    'Tretinoin 0.025% Cream', 'Tretinoin 0.05% Cream',
+    'Permethrin 5% Cream', 'Calamine Lotion 100ml', 'Mupirocin 2% Ointment',
+    'Fusidic Acid 2% Cream', 'Soframycin Cream 30g',
+    // Indian skin brands
+    'Betadine Cream 10g', 'Boroline Cream 20g', 'Candid B Cream',
+    'Panderm Cream', 'Tenovate Cream', 'Dermi-5 Cream',
+    'Lobate Cream', 'Fucidin Cream 15g', 'T-Bact Ointment 5g',
+
+    // ─── Eye Drops & Ear Drops ────────────────────────────────────────────────
+    'Ciprofloxacin Eye Drops 0.3%', 'Ofloxacin Eye Drops 0.3%',
+    'Tobramycin Eye Drops 0.3%', 'Gentamicin Eye Drops 0.3%',
+    'Moxifloxacin Eye Drops 0.5%', 'Chloramphenicol Eye Drops 0.5%',
+    'Prednisolone Eye Drops 1%', 'Dexamethasone Eye Drops 0.1%',
+    'Betamethasone Eye Drops', 'Nepafenac Eye Drops 0.1%',
+    'Latanoprost Eye Drops 0.005%', 'Timolol Eye Drops 0.5%',
+    'Carboxymethylcellulose Eye Drops (Lubricant)',
+    'Naphazoline + Chlorpheniramine Eye Drops',
+    'Clotrimazole Ear Drops', 'Ofloxacin Ear Drops 0.3%',
+    'Ciprofloxacin + Dexamethasone Ear Drops',
+    'Carbamide Peroxide Ear Drops (Earwax Removal)',
+    // Indian eye/ear brands
+    'Cipla Eye Drops', 'Tobaflam Eye Drops', 'Zaha Eye Drops',
+    'Moxi 0.5% Eye Drops', 'Moxicip 0.5%', 'Flurbiprofen Eye Drops',
+    'Ocuflur Eye Drops', 'Ear Wax Softener Drops',
+
+    // ─── Bone & Joint / Arthritis ────────────────────────────────────────────
+    'Calcium Carbonate 500mg', 'Calcium Citrate 500mg',
+    'Alendronate 70mg (Weekly)', 'Risedronate 35mg (Weekly)',
+    'Ibandronate 150mg (Monthly)', 'Denosumab 60mg Injection',
+    'Colchicine 0.5mg', 'Colchicine 1mg',
+    'Teriparatide Injection 20mcg', 'Calcitonin Nasal Spray',
+    'Methotrexate 2.5mg', 'Methotrexate 10mg',
+    'Hydroxychloroquine 200mg', 'Sulfasalazine 500mg', 'Leflunomide 10mg', 'Leflunomide 20mg',
+    'Chymoral Forte Tablet', 'Serratiopeptidase 5mg', 'Serratiopeptidase 10mg',
+    'Diclofenac + Serratiopeptidase',
+    // Indian bone/joint brands
+    'Shelcal CT Tablet', 'Osteocalcium Tablet', 'Dynapar 75mg',
+    'Voveran SR 100mg', 'Nucoxia 90mg', 'Arcoxia 60mg',
+
+    // ─── Liver / Hepatology ───────────────────────────────────────────────────
+    'Silymarin 140mg', 'Ursodeoxycholic Acid 150mg', 'Ursodeoxycholic Acid 300mg',
+    'Ademetionine 400mg', 'N-Acetylcysteine 600mg',
+    'Ornithine-Aspartate Sachet', 'Rifaximin 200mg', 'Rifaximin 400mg',
+    'Tenofovir 300mg', 'Entecavir 0.5mg', 'Entecavir 1mg',
+    'Sofosbuvir 400mg', 'Sofosbuvir + Ledipasvir 400/90mg',
+    // Indian liver brands
+    'Liv.52 Tablet', 'Liv.52 DS Tablet', 'Liv.52 Syrup 100ml',
+    'Udiliv 300mg', 'Heptral 400mg', 'Zydus Liv.52',
+
+    // ─── Cough / Cold / ENT ──────────────────────────────────────────────────
+    'Cetirizine + Pseudoephedrine', 'Loratadine + Pseudoephedrine',
+    'Xylometazoline Nasal Spray 0.05%', 'Xylometazoline Nasal Spray 0.1%',
+    'Oxymetazoline Nasal Spray 0.05%', 'Fluticasone Nasal Spray',
+    'Betamethasone Nasal Spray', 'Ipratropium Nasal Spray',
+    'Bromhexine 8mg', 'Ambroxol 30mg', 'Guaifenesin 100mg',
+    'Levosalbutamol 1mg', 'Levosalbutamol + Ambroxol Syrup',
+    // Indian ENT brands
+    'Sinarest Tablet', 'Coldact Capsule', 'D-Cold Total Tablet',
+    'Otrivin Nasal Spray 0.1%', 'Nasivion Nasal Spray',
+    'Ascoril LS Syrup 100ml', 'Grilinctus CD Syrup',
+    'Koflet Lozenge', 'Strepsils Lozenge',
+
+    // ─── Antacids / GI OTC ───────────────────────────────────────────────────
+    'Aluminium Hydroxide + Magnesium Hydroxide', 'Magaldrate 400mg',
+    'Sucralfate 1g', 'Simethicone 40mg',
+    // Indian brands
+    'Gelusil Tablet', 'Gelusil Gel 200ml', 'Digene Tablet', 'Digene Gel',
+    'Eno Fruit Salt Original', 'Pudin Hara Capsule',
+
+    // ─── Ayurvedic / Herbal (commonly prescribed in India) ───────────────────
+    'Triphala Tablet', 'Triphala Churna 100g', 'Ashwagandha 300mg', 'Ashwagandha 600mg',
+    'Shilajit 250mg', 'Brahmi 300mg', 'Shatavari 500mg',
+    'Turmeric + Curcumin 500mg', 'Tulsi 500mg',
+    'Haritaki Churna 100g', 'Giloy Ghan Vati',
+    'Septilin Tablet', 'Bresol Tablet', 'Mentat Tablet',
+    // Himalaya, Dabur, Baidyanath brands
+    'Himalaya Liv.52', 'Himalaya Septilin', 'Himalaya Mentat',
+    'Dabur Shilajit Gold Capsule', 'Dabur Ashwagandha Churna',
+    'Baidyanath Vita-Ex Gold Plus',
+
+    // ─── Liquids, Syrups & Suspensions ───────────────────────────────────────
     'Amoxicillin Oral Suspension 125mg/5ml', 'Amoxicillin Oral Suspension 250mg/5ml',
     'Paracetamol Pediatric Syrup 120mg/5ml', 'Paracetamol Pediatric Syrup 250mg/5ml',
     'Ibuprofen Oral Suspension 100mg/5ml', 'Cetirizine Syrup 5mg/5ml',
@@ -482,6 +518,9 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     'Dextromethorphan Syrup 100ml', 'Azithromycin Oral Suspension 200mg/5ml',
     'Zinc Sulfate Syrup 20mg/5ml', 'Salbutamol Syrup 2mg/5ml',
     'Multivitamin Liquid 200ml', 'Saline Nasal Spray 100ml',
+    'Cough Syrup 100ml', 'Benadryl Cough Syrup 100ml',
+    'ORS Sachet (Electrolyte)', 'Albendazole 400mg Tablet',
+    'Mebendazole 100mg', 'Ivermectin 3mg', 'Ivermectin 6mg',
   ];
 
   Widget _buildIdentitySection() {
@@ -858,7 +897,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   }
 
   Widget _buildScheduleSection() {
-    final frequencies = ['Every day', 'Specific days', 'Every 2 days', 'As needed (PRN)'];
+    final frequencies = ['Every day', 'Specific dates', 'Specific days', 'Every 2 days', 'As needed (PRN)'];
     final isPrn = _selectedFrequency == 'As needed (PRN)';
     final foodChips = [
       {'label': 'With Food', 'icon': Icons.restaurant_menu_rounded},
@@ -976,6 +1015,21 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Date Range Calendar View if 'Specific dates' selected
+          if (_selectedFrequency == 'Specific dates') ...[
+            DateRangeCalendarView(
+              startDate: _courseStartDate,
+              endDate: _courseEndDate,
+              onRangeChanged: (range) {
+                setState(() {
+                  _courseStartDate = range.start;
+                  _courseEndDate = range.end;
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
 
           if (isPrn) ...[
             Container(

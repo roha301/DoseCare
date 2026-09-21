@@ -51,8 +51,9 @@ class _TodayScreenState extends State<TodayScreen> {
     final pendingItems = timeline.where((t) => t.isPending).toList();
     final takenItems = timeline.where((t) => t.isTaken).toList();
     final skippedItems = timeline.where((t) => t.isSkipped).toList();
+    final missedItems = timeline.where((t) => t.isMissed).toList();
     final lowStockMeds = _controller.medicines.where((m) => m.isLowStock).toList();
-    final totalAlerts = pendingItems.length + lowStockMeds.length;
+    final totalAlerts = pendingItems.length + missedItems.length + lowStockMeds.length;
 
     showModalBottomSheet(
       context: context,
@@ -322,6 +323,81 @@ class _TodayScreenState extends State<TodayScreen> {
                               ],
                             ),
                           )),
+
+                          // Missed / Not Taken list
+                          if (missedItems.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(Icons.error_outline_rounded, color: AppColors.alertCoral, size: 16),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Not Taken ()',
+                                  style: AppTypography.labelSm(color: AppColors.alertCoral).copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            ...missedItems.map((item) => Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.alertCoralBg,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.alertCoral.withValues(alpha: 0.2)),
+                              ),
+                              child: Row(
+                                children: [
+                                  PillVisualizer(
+                                    shape: item.medicine.type,
+                                    colorName: item.medicine.pillColor,
+                                    imprintCode: item.medicine.imprintCode,
+                                    width: 28,
+                                    height: 28,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          ' • ',
+                                          style: AppTypography.labelMd(color: AppColors.onSurface).copyWith(fontWeight: FontWeight.bold),
+                                        ),
+                                        Text(
+                                          'Scheduled at  - Not taken',
+                                          style: AppTypography.bodySm(color: AppColors.alertCoral),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () async {
+                                      if (item.medicine.id != null && item.schedule.id != null) {
+                                        await _controller.takeDose(
+                                          medicineId: item.medicine.id!,
+                                          scheduleId: item.schedule.id!,
+                                          doseCount: item.schedule.doseCount,
+                                        );
+                                        if (mounted) {
+                                          setState(() {});
+                                          setModalState(() {});
+                                        }
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.alertCoral,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      visualDensity: VisualDensity.compact,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    ),
+                                    child: const Text('Take Late'),
+                                  ),
+                                ],
+                              ),
+                            )),
+                          ],
 
                           // Taken/Skipped summary
                           if (takenItems.isNotEmpty || skippedItems.isNotEmpty) ...[
@@ -629,6 +705,8 @@ class _TodayScreenState extends State<TodayScreen> {
   Widget _buildAdherenceCard(List<ScheduledDoseItem> timeline) {
     final totalCount = timeline.length;
     final takenCount = timeline.where((t) => t.isTaken).length;
+    final skippedCount = timeline.where((t) => t.isSkipped).length;
+    final missedCount = timeline.where((t) => t.isMissed).length;
     final percentage = totalCount > 0 ? ((takenCount / totalCount) * 100).round() : 0;
 
     String headline;
@@ -642,8 +720,25 @@ class _TodayScreenState extends State<TodayScreen> {
       subline = 'Fantastic job! All scheduled doses completed for today. 🎉';
     } else {
       headline = '$takenCount of $totalCount doses taken ($percentage%)';
-      final nextPending = timeline.firstWhere((t) => t.isPending);
-      subline = 'Next up: ${nextPending.medicine.name} at ${nextPending.schedule.timeOfDay}.';
+      final nextPending = timeline.where((t) => t.isPending).firstOrNull;
+      if (nextPending != null) {
+        subline = 'Next up: ${nextPending.medicine.name} at ${nextPending.schedule.timeOfDay}.';
+      } else {
+        final nextSnoozed = timeline.where((t) => t.isSnoozed).firstOrNull;
+        if (nextSnoozed != null) {
+          subline = 'Snoozed: ${nextSnoozed.medicine.name} at ${nextSnoozed.schedule.timeOfDay}.';
+        } else if (missedCount > 0) {
+          subline = '$missedCount dose${missedCount > 1 ? "s were" : " was"} not taken today.';
+        } else if (skippedCount > 0) {
+          if (takenCount == 0) {
+            subline = '$skippedCount dose${skippedCount > 1 ? "s were" : " was"} skipped for today.';
+          } else {
+            subline = 'All remaining doses were skipped ($skippedCount skipped).';
+          }
+        } else {
+          subline = 'All scheduled doses addressed for today.';
+        }
+      }
     }
 
     return Container(
@@ -1018,8 +1113,8 @@ class _TodayScreenState extends State<TodayScreen> {
     if (isDone) {
       nodeColor = AppColors.adherenceGreen;
       nodeIcon = Icons.check_rounded;
-      final actionTimeStr = item.todayLog?.actionTime != null
-          ? 'Taken at ${_formatActionTime(item.todayLog!.actionTime!)}'
+      final actionTimeStr = item.todayLog.actionTime != null
+          ? 'Taken at ${_formatActionTime(item.todayLog.actionTime!)}'
           : 'Taken';
       tagText = actionTimeStr;
       tagColor = AppColors.adherenceGreenLight;
@@ -1028,7 +1123,7 @@ class _TodayScreenState extends State<TodayScreen> {
     } else if (isSkipped) {
       nodeColor = AppColors.alertCoral;
       nodeIcon = Icons.close_rounded;
-      tagText = 'Skipped: ${item.todayLog?.skipReason ?? "Not taken"}';
+      tagText = 'Skipped: ${item.todayLog.skipReason ?? "Not taken"}';
       tagColor = const Color(0xFFFFDAD6);
       tagTextColor = AppColors.alertCoral;
       tagIcon = Icons.cancel_outlined;
@@ -1039,6 +1134,13 @@ class _TodayScreenState extends State<TodayScreen> {
       tagColor = AppColors.secondaryContainer;
       tagTextColor = AppColors.onSecondaryContainer;
       tagIcon = Icons.snooze_rounded;
+    } else if (item.isMissed) {
+      nodeColor = AppColors.alertCoral;
+      nodeIcon = Icons.error_outline_rounded;
+      tagText = 'Not Taken (Due ${item.schedule.timeOfDay})';
+      tagColor = AppColors.alertCoralBg;
+      tagTextColor = AppColors.alertCoral;
+      tagIcon = Icons.error_outline_rounded;
     } else {
       nodeColor = AppColors.primary;
       nodeIcon = Icons.circle;
@@ -1199,6 +1301,116 @@ class _TodayScreenState extends State<TodayScreen> {
                           ],
                         ),
 
+                        // Action Banner & Buttons if dose was auto-marked as Missed / Not Taken
+                        if (item.isMissed) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppColors.alertCoralBg,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.alertCoral.withValues(alpha: 0.25)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.alertCoral),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Dose was not taken at scheduled time (${item.schedule.timeOfDay}).',
+                                    style: AppTypography.bodySm(color: AppColors.alertCoral),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: ElevatedButton.icon(
+                                  onPressed: isBusy
+                                      ? null
+                                      : () async {
+                                          if (item.medicine.id == null || item.schedule.id == null) return;
+                                          setState(() => _takingDoseIds.add(scheduleId));
+                                          await _controller.takeDose(
+                                            medicineId: item.medicine.id!,
+                                            scheduleId: item.schedule.id!,
+                                            doseCount: item.schedule.doseCount,
+                                          );
+                                          if (mounted) {
+                                            setState(() => _takingDoseIds.remove(scheduleId));
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('Recorded late dose for ${item.medicine.name} ✓'),
+                                                backgroundColor: AppColors.primary,
+                                              ),
+                                            );
+                                          }
+                                        },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.alertCoral,
+                                    foregroundColor: Colors.white,
+                                    minimumSize: const Size(0, 42),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                  icon: isBusy
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.check_circle_rounded, size: 18),
+                                  label: Text(
+                                    isBusy ? 'Saving...' : 'Take Late (${item.medicine.dosage})',
+                                    style: AppTypography.labelMd(color: Colors.white).copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                flex: 2,
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final reason = await SkipReasonSheet.show(
+                                      context,
+                                      medicineName: item.medicine.name,
+                                    );
+                                    if (reason != null && item.medicine.id != null && item.schedule.id != null) {
+                                      await _controller.skipDose(
+                                        medicineId: item.medicine.id!,
+                                        scheduleId: item.schedule.id!,
+                                        reason: reason,
+                                      );
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Dose skipped: ${item.medicine.name} ($reason)'),
+                                            backgroundColor: AppColors.alertCoral,
+                                          ),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    backgroundColor: AppColors.surfaceContainer,
+                                    side: BorderSide.none,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    minimumSize: const Size(0, 42),
+                                  ),
+                                  icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.onSurfaceVariant),
+                                  label: Text(
+                                    'Skip Note',
+                                    style: AppTypography.labelMd(color: AppColors.onSurfaceVariant),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+
                         // Action Buttons if dose is Pending or Snoozed
                         if (isPending || isSnoozed) ...[
                           const SizedBox(height: 14),
@@ -1294,6 +1506,14 @@ class _TodayScreenState extends State<TodayScreen> {
                                         scheduleId: item.schedule.id!,
                                         reason: reason,
                                       );
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Dose skipped: ${item.medicine.name} ($reason)'),
+                                            backgroundColor: AppColors.alertCoral,
+                                          ),
+                                        );
+                                      }
                                     }
                                   },
                                   style: OutlinedButton.styleFrom(

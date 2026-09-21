@@ -11,6 +11,27 @@ import 'package:medimate/presentation/controllers/app_controller.dart';
 import 'package:medimate/presentation/widgets/radial_adherence_arc.dart';
 import 'package:medimate/presentation/widgets/dosecare_logo.dart';
 
+class _WeeklyLegend extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _WeeklyLegend({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 4),
+          Text(label, style: AppTypography.labelSm(color: AppColors.outline)),
+        ],
+      );
+}
+
 class InsightsScreen extends StatefulWidget {
   const InsightsScreen({super.key});
 
@@ -21,10 +42,6 @@ class InsightsScreen extends StatefulWidget {
 class _InsightsScreenState extends State<InsightsScreen> {
   final AppController _controller = AppController.instance;
   String _activeTab = 'week'; // week, month, 90days
-  // Retained only while the legacy helper remains in this file; it is no
-  // longer rendered on the Insights screen.
-  bool _isOptimizationDismissed = false;
-  bool _isTimeShifted = false;
   bool _isGeneratingPdf = false;
 
   @override
@@ -400,7 +417,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
   Widget _buildWeeklyPerformanceSection() {
     final now = DateTime.now();
-    final dayLabels = ['M', 'T', 'W', 'TH', 'F', 'S', 'SU'];
+    final dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     final currentWeekday = now.weekday; // 1=Mon, 7=Sun
 
     // Build per-day adherence from history
@@ -476,10 +493,19 @@ class _InsightsScreenState extends State<InsightsScreen> {
                     const SizedBox(height: 12),
                   ],
                 )
-              : SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+              : Column(
+                  children: [
+                    Row(
+                      children: const [
+                        _WeeklyLegend(color: AppColors.adherenceGreen, label: '80–100%'),
+                        SizedBox(width: 12),
+                        _WeeklyLegend(color: AppColors.secondary, label: '50–79%'),
+                        SizedBox(width: 12),
+                        _WeeklyLegend(color: AppColors.alertCoral, label: 'Below 50%'),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: List.generate(7, (i) {
                     final dayIndex = i + 1; // 1=Mon
@@ -515,9 +541,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       heightFactor = 0.15;
                     }
 
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
+                    return Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
                         if (total > 0 && !isFuture)
                           Text(
                             '${(rate * 100).round()}%',
@@ -530,7 +557,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         const SizedBox(height: 4),
                         Container(
                           width: 30,
-                          height: 80,
+                          height: 88,
                           decoration: BoxDecoration(
                             color: AppColors.surfaceContainerLow,
                             borderRadius: BorderRadius.circular(8),
@@ -539,8 +566,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 600),
                             curve: Curves.easeOut,
-                            width: 30,
-                            height: 80 * heightFactor.clamp(0.05, 1.0),
+                            width: 26,
+                            height: 88 * heightFactor.clamp(0.05, 1.0),
                             decoration: BoxDecoration(
                               color: col,
                               borderRadius: BorderRadius.circular(6),
@@ -570,10 +597,12 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                   ? AppColors.outline.withValues(alpha: 0.5)
                                   : col),
                         ),
-                      ],
+                        ],
+                      ),
                     );
                     }),
                   ),
+                  ],
                 ),
         ),
       ],
@@ -671,112 +700,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
   }
 
-  Widget _buildScheduleOptimizationSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.auto_awesome_rounded, color: AppColors.secondary, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Schedule Optimization',
-                style: AppTypography.headlineSm(color: AppColors.onSurface).copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(
-                  color: AppColors.surfaceContainerHigh,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.alarm_on_rounded, color: AppColors.primary, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'AI Timing Recommendation',
-                      style: AppTypography.labelMd(color: AppColors.onSurface).copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Setting morning doses right after breakfast improves adherence by 24% according to clinical guidelines.',
-                      style: AppTypography.bodySm(color: AppColors.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _isTimeShifted
-                      ? null
-                      : () {
-                          setState(() => _isTimeShifted = true);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Optimal reminders configured ✓'),
-                              backgroundColor: AppColors.primary,
-                            ),
-                          );
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  icon: const Icon(Icons.check_rounded, size: 18),
-                  label: Text(_isTimeShifted ? 'Optimal Reminders Active' : 'Optimize Reminders'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: () => setState(() => _isOptimizationDismissed = true),
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text('Dismiss'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
-  Future<File> _generatePdfReport() async {
+
+  Future<File> _generatePdfReport({
+    required List<Map<String, dynamic>> historyLogs,
+    required String reportTitle,
+  }) async {
     final pdf = pw.Document();
-    final historyLogs = _controller.allHistoryLogs;
     final userName = _controller.user?.name ?? 'Patient';
     final rate = _controller.adherenceStats['adherenceRate'] ?? 0;
     final taken = _controller.adherenceStats['dosesTaken'] ?? 0;
@@ -796,7 +726,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('DoseCare Adherence Report', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.teal800)),
+                    pw.Text(reportTitle, style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.teal800)),
                     pw.SizedBox(height: 2),
                     pw.Text('Clinical Medication Adherence & Daily Intake Log', style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700)),
                   ],
@@ -931,6 +861,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
     final taken = _controller.adherenceStats['dosesTaken'] ?? 0;
     final total = _controller.adherenceStats['totalLogged'] ?? 0;
 
+    var selectedDate = DateTime.now();
+    var showingAllRecords = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -938,6 +871,16 @@ class _InsightsScreenState extends State<InsightsScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (modalCtx, setModalState) {
+            final visibleLogs = showingAllRecords
+                ? historyLogs
+                : historyLogs.where((log) {
+                    final raw = log['action_time'] as String? ?? log['scheduled_time'] as String?;
+                    final date = raw == null ? null : DateTime.tryParse(raw);
+                    return date != null && DateUtils.isSameDay(date, selectedDate);
+                  }).toList();
+            final recordLabel = showingAllRecords
+                ? 'Overall record'
+                : 'Daily record · ${DateFormat('dd MMM yyyy').format(selectedDate)}';
             return Container(
               height: MediaQuery.of(context).size.height * 0.85,
               decoration: const BoxDecoration(
@@ -1001,7 +944,49 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       ],
                     ),
                   ),
-                                   // Summary metrics
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Today'),
+                          selected: !showingAllRecords && DateUtils.isSameDay(selectedDate, DateTime.now()),
+                          onSelected: (_) => setModalState(() {
+                            selectedDate = DateTime.now();
+                            showingAllRecords = false;
+                          }),
+                        ),
+                        ActionChip(
+                          avatar: const Icon(Icons.calendar_month_rounded, size: 17),
+                          label: const Text('Choose day'),
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: modalCtx,
+                              initialDate: selectedDate,
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime.now(),
+                            );
+                            if (picked != null) {
+                              setModalState(() {
+                                selectedDate = picked;
+                                showingAllRecords = false;
+                              });
+                            }
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text('Overall record'),
+                          selected: showingAllRecords,
+                          onSelected: (_) => setModalState(() => showingAllRecords = true),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Summary metrics
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Container(
@@ -1054,7 +1039,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Daily Meds Report Table',
+                        '$recordLabel (${visibleLogs.length})',
                         style: AppTypography.labelMd(color: AppColors.onSurface).copyWith(fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -1062,14 +1047,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   const SizedBox(height: 8),
 
                   Expanded(
-                    child: historyLogs.isEmpty
+                    child: visibleLogs.isEmpty
                         ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 const Icon(Icons.table_rows_rounded, size: 40, color: AppColors.outline),
                                 const SizedBox(height: 8),
-                                Text('No Daily Logs Recorded', style: AppTypography.headlineSm(color: AppColors.onSurface).copyWith(fontSize: 16)),
+                                Text('No records for this day', style: AppTypography.headlineSm(color: AppColors.onSurface).copyWith(fontSize: 16)),
                                 const SizedBox(height: 4),
                                 Text('Intake records will show here in tabular form.', style: AppTypography.bodySm(color: AppColors.onSurfaceVariant)),
                               ],
@@ -1100,7 +1085,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                         DataColumn(label: Text('Time', style: AppTypography.labelSm(color: AppColors.primary).copyWith(fontWeight: FontWeight.bold))),
                                         DataColumn(label: Text('Status', style: AppTypography.labelSm(color: AppColors.primary).copyWith(fontWeight: FontWeight.bold))),
                                       ],
-                                      rows: historyLogs.map((log) {
+                                      rows: visibleLogs.map((log) {
                                         final isTaken = (log['status'] as String? ?? 'TAKEN') == 'TAKEN';
                                         final med = log['medicine_name'] as String? ?? 'Medicine';
                                         final dosage = log['dosage'] as String? ?? '-';
@@ -1160,7 +1145,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                 : () async {
                                     setModalState(() => _isGeneratingPdf = true);
                                     try {
-                                      final pdfFile = await _generatePdfReport();
+                                      final pdfFile = await _generatePdfReport(
+                                        historyLogs: visibleLogs,
+                                        reportTitle: 'DoseCare $recordLabel',
+                                      );
                                       if (mounted) {
                                         ScaffoldMessenger.of(context).showSnackBar(
                                           SnackBar(
@@ -1173,7 +1161,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                                 SharePlus.instance.share(
                                                   ShareParams(
                                                     files: [XFile(pdfFile.path)],
-                                                    text: 'DoseCare Medication Adherence Report for $userName',
+                                            text: 'DoseCare $recordLabel for $userName',
                                                   ),
                                                 );
                                               },
@@ -1189,7 +1177,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                       await SharePlus.instance.share(
                                         ShareParams(
                                           files: [XFile(pdfFile.path)],
-                                          text: 'DoseCare Medication Adherence Report for $userName',
+                                          text: 'DoseCare $recordLabel for $userName',
                                         ),
                                       );
                                     } catch (e) {
@@ -1212,7 +1200,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                                 : const Icon(Icons.download_rounded, size: 20),
                             label: Text(
-                              _isGeneratingPdf ? 'Generating PDF...' : 'Download PDF',
+                              _isGeneratingPdf ? 'Generating PDF...' : 'Download record',
                               style: AppTypography.labelMd(color: Colors.white).copyWith(fontWeight: FontWeight.bold),
                             ),
                           ),
