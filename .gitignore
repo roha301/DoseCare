@@ -51,3 +51,8 @@ app.*.map.json
 windows/flutter/ephemeral/
 linux/flutter/ephemeral/
 macos/Flutter/ephemeral/
+
+# Secret keys - NEVER commit these
+.env
+*.env
+dart_defines.json

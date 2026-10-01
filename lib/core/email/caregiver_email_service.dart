@@ -14,13 +14,9 @@ import 'package:http/http.dart' as http;
 const String dailyEmailTask = 'dailyCaregiverEmail';
 const String weeklyEmailTask = 'weeklyCaregiverEmail';
 
-/// Brevo API Key for direct transactional email delivery
-const String _brevoApiKey = String.fromEnvironment(
-  'BREVO_API_KEY',
-  defaultValue: 'xkeysib-'
-      '208eb52b97f010e471a390aee2dfa8b53f85e84b62cfa26a66035d4928ebd195'
-      '-ojtNc3UT55lBx03Y',
-);
+/// Brevo API Key injected at build time via --dart-define=BREVO_API_KEY=...
+/// Never hardcode this value here. Pass it at build or run time.
+const String _brevoApiKey = String.fromEnvironment('BREVO_API_KEY');
 
 /// Sends a report directly to the caregiver via Brevo REST API.
 Future<void> sendCaregiverReportEmail({
