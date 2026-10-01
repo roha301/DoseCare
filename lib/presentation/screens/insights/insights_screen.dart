@@ -5,11 +5,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
-import 'package:medimate/core/constants/app_colors.dart';
-import 'package:medimate/core/constants/app_typography.dart';
-import 'package:medimate/presentation/controllers/app_controller.dart';
-import 'package:medimate/presentation/widgets/radial_adherence_arc.dart';
-import 'package:medimate/presentation/widgets/dosecare_logo.dart';
+import 'package:dosecare/core/constants/app_colors.dart';
+import 'package:dosecare/core/constants/app_typography.dart';
+import 'package:dosecare/presentation/controllers/app_controller.dart';
+import 'package:dosecare/presentation/widgets/radial_adherence_arc.dart';
+import 'package:dosecare/presentation/widgets/dosecare_logo.dart';
 
 class _WeeklyLegend extends StatelessWidget {
   final Color color;
@@ -801,7 +801,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
             pw.SizedBox(height: 20),
             pw.Divider(),
-            pw.Text('Generated securely on-device by DoseCare Medication Assistant. Confidential medical document.', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500)),
+            pw.Text('Generated securely on-device by DoseCare. Confidential medical document.', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey500)),
           ];
         },
       ),
@@ -844,7 +844,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
       }
     }
     buffer.writeln('');
-    buffer.writeln('Generated with DoseCare — AI Assisted Medication Management');
+    buffer.writeln('Generated with DoseCare — Medication Management');
 
     await SharePlus.instance.share(
       ShareParams(

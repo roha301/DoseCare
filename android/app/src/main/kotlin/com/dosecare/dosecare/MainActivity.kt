@@ -1,4 +1,4 @@
-package com.medimate.medimate
+package com.dosecare.dosecare
 
 import android.Manifest
 import android.content.Intent
@@ -16,7 +16,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "medimate/dose_alarm")
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dosecare/dose_alarm")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "schedule" -> {

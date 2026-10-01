@@ -16,7 +16,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('medimate.db');
+    _database = await _initDB('dosecare.db');
     return _database!;
   }
 
@@ -234,10 +234,52 @@ class DatabaseHelper {
     );
   }
 
+  Future<List<int>> getPendingOccurrenceIdsForMedicine(int medicineId) async {
+    final db = await instance.database;
+    final rows = await db.query(
+      'dose_occurrences',
+      columns: ['id'],
+      where: 'medicine_id = ? AND status IN (?, ?)',
+      whereArgs: [medicineId, 'PENDING', 'SNOOZED'],
+    );
+    return rows.map((r) => r['id']).whereType<int>().toList();
+  }
+
+  Future<List<int>> getOrphanedOccurrenceIds() async {
+    final db = await instance.database;
+    final rows = await db.rawQuery('''
+      SELECT o.id
+      FROM dose_occurrences o
+      LEFT JOIN medicines m ON o.medicine_id = m.id
+      WHERE (m.id IS NULL OR m.is_active = 0)
+        AND o.status IN ('PENDING', 'SNOOZED')
+    ''');
+    return rows.map((r) => r['id']).whereType<int>().toList();
+  }
+
+  Future<int> cleanUpOrphanedOccurrences() async {
+    final db = await instance.database;
+    return await db.rawDelete('''
+      DELETE FROM dose_occurrences
+      WHERE status IN ('PENDING', 'SNOOZED')
+        AND medicine_id IN (
+          SELECT id FROM medicines WHERE is_active = 0
+        )
+    ''');
+  }
+
   Future<int> deleteMedicine(int id) async {
     final db = await instance.database;
-    // Soft delete
-    return await db.update('medicines', {'is_active': 0}, where: 'id = ?', whereArgs: [id]);
+    return await db.transaction((txn) async {
+      // Remove any pending/snoozed occurrences so they never trigger or appear
+      await txn.delete(
+        'dose_occurrences',
+        where: 'medicine_id = ? AND status IN (?, ?)',
+        whereArgs: [id, 'PENDING', 'SNOOZED'],
+      );
+      // Soft delete
+      return await txn.update('medicines', {'is_active': 0}, where: 'id = ?', whereArgs: [id]);
+    });
   }
 
   // Schedules
@@ -507,6 +549,19 @@ class DatabaseHelper {
     ''', ['$key%']);
   }
 
+  /// Every occurrence (any status) whose scheduled time falls within
+  /// [start, end], inclusive, for the automatic caregiver email reports.
+  Future<List<Map<String, dynamic>>> getOccurrencesInRange(DateTime start, DateTime end) async {
+    final db = await instance.database;
+    return db.rawQuery('''
+      SELECT o.scheduled_at, o.action_time, o.skip_reason, o.status, m.name, m.dosage, m.type
+      FROM dose_occurrences o
+      INNER JOIN medicines m ON o.medicine_id = m.id
+      WHERE m.is_active = 1 AND o.scheduled_at >= ? AND o.scheduled_at <= ?
+      ORDER BY o.scheduled_at ASC
+    ''', [start.toIso8601String(), end.toIso8601String()]);
+  }
+
   Future<List<Map<String, dynamic>>> getPendingOccurrencesUntil(DateTime end) async {
     final db = await instance.database;
     return db.rawQuery('''
@@ -600,6 +655,31 @@ class DatabaseHelper {
       'event_type': eventType,
       'created_at': DateTime.now().toIso8601String(),
     });
+  }
+
+  /// Returns caregiver alerts (both the manual DOSE_SKIPPED log and the
+  /// automatic native SMS alerts), newest first, with the medicine name
+  /// resolved where one is attached.
+  Future<List<Map<String, dynamic>>> getCaregiverEvents({int limit = 50}) async {
+    final db = await instance.database;
+    return db.rawQuery('''
+      SELECT e.id, e.medicine_id, e.occurrence_id, e.event_type, e.created_at,
+             e.acknowledged_at, m.name AS medicine_name
+      FROM caregiver_events e
+      LEFT JOIN medicines m ON e.medicine_id = m.id
+      ORDER BY e.created_at DESC
+      LIMIT ?
+    ''', [limit]);
+  }
+
+  Future<void> acknowledgeCaregiverEvent(int eventId) async {
+    final db = await instance.database;
+    await db.update(
+      'caregiver_events',
+      {'acknowledged_at': DateTime.now().toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [eventId],
+    );
   }
 
   // Wipe all local app data only after the explicit confirmation in Profile.

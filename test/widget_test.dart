@@ -7,7 +7,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:medimate/main.dart';
+import 'package:dosecare/main.dart';
 
 void main() {
   testWidgets('DoseCareApp builds smoke test', (WidgetTester tester) async {

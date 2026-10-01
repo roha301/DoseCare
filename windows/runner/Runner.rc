@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.medimate" "\0"
-            VALUE "FileDescription", "medimate" "\0"
+            VALUE "CompanyName", "com.dosecare" "\0"
+            VALUE "FileDescription", "dosecare" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "medimate" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.medimate. All rights reserved." "\0"
-            VALUE "OriginalFilename", "medimate.exe" "\0"
-            VALUE "ProductName", "medimate" "\0"
+            VALUE "InternalName", "dosecare" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.dosecare. All rights reserved." "\0"
+            VALUE "OriginalFilename", "dosecare.exe" "\0"
+            VALUE "ProductName", "dosecare" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

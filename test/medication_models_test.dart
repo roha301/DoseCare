@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:medimate/core/safety/drug_interactions.dart';
-import 'package:medimate/data/models/dose_occurrence_model.dart';
-import 'package:medimate/data/models/schedule_model.dart';
+import 'package:dosecare/core/safety/drug_interactions.dart';
+import 'package:dosecare/data/models/dose_occurrence_model.dart';
+import 'package:dosecare/data/models/schedule_model.dart';
 
 void main() {
   test('schedule preserves cadence fields', () {
@@ -34,5 +34,25 @@ void main() {
     final results = DrugSafetyEngine.checkInteractions('Warfarin', ['Aspirin']);
     expect(results, hasLength(1));
     expect(results.single.severity, 'High');
+  });
+
+  test('brand names resolve to their generic ingredient', () {
+    final results = DrugSafetyEngine.checkInteractions('Ecosprin', ['Warfarin']);
+    expect(results, hasLength(1));
+    expect(results.single.severity, 'High');
+  });
+
+  test('dosage-form noise does not block a known interaction', () {
+    final results = DrugSafetyEngine.checkInteractions(
+      'Aspirin 75mg Tablet',
+      ['Warfarin 5mg Tab'],
+    );
+    expect(results, hasLength(1));
+    expect(results.single.severity, 'High');
+  });
+
+  test('unrelated medicines produce no interaction', () {
+    final results = DrugSafetyEngine.checkInteractions('Paracetamol', ['Vitamin D']);
+    expect(results, isEmpty);
   });
 }

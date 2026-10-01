@@ -1,5 +1,5 @@
-name: medimate
-description: "A new Flutter project."
+name: dosecare
+description: "DoseCare - Medication Tracker & Reminders"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -47,6 +47,14 @@ dependencies:
   share_plus: ^13.3.0
   path_provider: ^2.1.6
   pdf: ^3.12.0
+  mailer: ^6.4.1
+  workmanager: ^0.9.0+3
+  flutter_secure_storage: ^11.2.0
+  firebase_core: ^4.15.0
+  cloud_firestore: ^6.0.0
+  firebase_auth: ^6.7.0
+  google_sign_in: ^6.2.2
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

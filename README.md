@@ -142,7 +142,7 @@ medimate/
 │   │   └── models/             # Medicine, Schedule, DoseOccurrence, User, Prescription
 │   └── presentation/           # User Interface Layer
 │       ├── controllers/        # AppController (State orchestration)
-│       ├── screens/            # Today, AddMedicine, Inventory, Insights, Assistant, Profile
+│       ├── screens/            # Today, AddMedicine, Inventory, Insights, Profile
 │       └── widgets/            # Custom buttons, cards, dialogs, badges
 └── test/                       # Unit and widget test suite
 ```

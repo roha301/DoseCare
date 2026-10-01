@@ -45,6 +45,33 @@ class AppTypography {
         color: color,
       );
 
+  // Title Large (20px, 600)
+  static TextStyle titleLg({Color color = AppColors.onSurface}) =>
+      GoogleFonts.plusJakartaSans(
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+        height: 26 / 20,
+        color: color,
+      );
+
+  // Title Medium (16px, 600)
+  static TextStyle titleMd({Color color = AppColors.onSurface}) =>
+      GoogleFonts.plusJakartaSans(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        height: 22 / 16,
+        color: color,
+      );
+
+  // Title Small (14px, 600)
+  static TextStyle titleSm({Color color = AppColors.onSurface}) =>
+      GoogleFonts.plusJakartaSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        height: 20 / 14,
+        color: color,
+      );
+
   // Body Large (16px, 500)
   static TextStyle bodyLg({Color color = AppColors.onSurface}) =>
       GoogleFonts.inter(

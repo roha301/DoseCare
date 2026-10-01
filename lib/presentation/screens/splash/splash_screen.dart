@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:medimate/core/constants/app_colors.dart';
-import 'package:medimate/core/constants/app_typography.dart';
-import 'package:medimate/presentation/screens/onboarding/onboarding_screen.dart';
-import 'package:medimate/presentation/screens/main_nav/main_navigation_screen.dart';
-import 'package:medimate/presentation/widgets/dosecare_logo.dart';
+import 'package:dosecare/core/constants/app_colors.dart';
+import 'package:dosecare/core/constants/app_typography.dart';
+import 'package:dosecare/presentation/screens/onboarding/onboarding_screen.dart';
+import 'package:dosecare/presentation/screens/main_nav/main_navigation_screen.dart';
+import 'package:dosecare/presentation/widgets/dosecare_logo.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});

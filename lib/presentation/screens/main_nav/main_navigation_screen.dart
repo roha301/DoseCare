@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:medimate/core/constants/app_colors.dart';
-import 'package:medimate/core/constants/app_typography.dart';
-import 'package:medimate/presentation/screens/today/today_screen.dart';
-import 'package:medimate/presentation/screens/inventory/inventory_screen.dart';
-import 'package:medimate/presentation/screens/add_medicine/add_medicine_screen.dart';
-import 'package:medimate/presentation/screens/insights/insights_screen.dart';
-import 'package:medimate/presentation/screens/profile/profile_screen.dart';
+import 'package:dosecare/core/constants/app_colors.dart';
+import 'package:dosecare/core/constants/app_typography.dart';
+import 'package:dosecare/presentation/screens/today/today_screen.dart';
+import 'package:dosecare/presentation/screens/inventory/inventory_screen.dart';
+import 'package:dosecare/presentation/screens/add_medicine/add_medicine_screen.dart';
+import 'package:dosecare/presentation/screens/insights/insights_screen.dart';
+import 'package:dosecare/presentation/screens/profile/profile_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});

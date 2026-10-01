@@ -1,4 +1,4 @@
-package com.medimate.medimate
+package com.dosecare.dosecare
 
 import android.app.AlarmManager
 import android.app.NotificationChannel
@@ -27,10 +27,11 @@ import java.util.Calendar
 
 private const val channelId = "dosecare_active_alarm"
 private const val individualChannelId = "dosecare_reminders"
-private const val ringAction = "com.medimate.medimate.RING_DOSE"
-private const val stopAction = "com.medimate.medimate.STOP_DOSE_ALARM"
-private const val snoozeAction = "com.medimate.medimate.SNOOZE_DOSE_ALARM"
-private const val stopAllAction = "com.medimate.medimate.STOP_ALL_DOSE_ALARMS"
+private const val ringAction = "com.dosecare.dosecare.RING_DOSE"
+private const val takeAction = "com.dosecare.dosecare.TAKE_DOSE_ALARM"
+private const val stopAction = "com.dosecare.dosecare.STOP_DOSE_ALARM"
+private const val snoozeAction = "com.dosecare.dosecare.SNOOZE_DOSE_ALARM"
+private const val stopAllAction = "com.dosecare.dosecare.STOP_ALL_DOSE_ALARMS"
 private const val extraId = "occurrence_id"
 private const val extraMedicine = "medicine_name"
 private const val extraDosage = "dosage"
@@ -38,8 +39,9 @@ private const val extraTone = "tone_name"
 private const val extraCustomToneUri = "custom_tone_uri"
 private const val extraCaregiverPhone = "caregiver_phone"
 private const val extraPatientName = "patient_name"
-private const val caregiverSmsAction = "com.medimate.medimate.CAREGIVER_SMS"
-private const val dailyReportAction = "com.medimate.medimate.DAILY_CAREGIVER_REPORT"
+private const val extraScheduledAtMillis = "scheduled_at_millis"
+private const val caregiverSmsAction = "com.dosecare.dosecare.CAREGIVER_SMS"
+private const val dailyReportAction = "com.dosecare.dosecare.DAILY_CAREGIVER_REPORT"
 private const val dailyReportRequestCode = 2_000_000
 private const val dailyReportPreferences = "dosecare_daily_report"
 
@@ -49,6 +51,8 @@ data class ActiveDose(
     val dosage: String,
     val tone: String,
     val customToneUri: String?,
+    val caregiverPhone: String?,
+    val patientName: String?,
 )
 
 object DoseAlarmScheduler {
@@ -117,6 +121,8 @@ object DoseAlarmScheduler {
             putExtra(extraDosage, dosage)
             putExtra(extraTone, toneName)
             putExtra(extraCustomToneUri, customToneUri)
+            putExtra(extraCaregiverPhone, caregiverPhone)
+            putExtra(extraPatientName, patientName)
         }
         val pending = PendingIntent.getBroadcast(
             context,
@@ -157,6 +163,7 @@ object DoseAlarmScheduler {
                 putExtra(extraDosage, dosage)
                 putExtra(extraCaregiverPhone, caregiverPhone)
                 putExtra(extraPatientName, patientName ?: "The patient")
+                putExtra(extraScheduledAtMillis, triggerAtMillis)
             }
             val smsPending = PendingIntent.getBroadcast(
                 context,
@@ -240,6 +247,7 @@ class DailyCaregiverReportReceiver : BroadcastReceiver() {
             val report = buildReport(context, patient)
             try {
                 SmsManager.getDefault().sendTextMessage(phone, null, report, null, null)
+                insertCaregiverEvent(context, null, null, "DAILY_REPORT_SMS")
             } catch (_: SecurityException) {
             } catch (_: Exception) {
             }
@@ -247,40 +255,52 @@ class DailyCaregiverReportReceiver : BroadcastReceiver() {
         }
     }
 
+    private fun statusLabel(status: String?): String = when (status) {
+        "TAKEN" -> "Taken"
+        "SKIPPED", "MISSED", "NOT_TAKEN" -> "Not Taken"
+        else -> "Pending"
+    }
+
     private fun buildReport(context: Context, patient: String): String {
-        var total = 0
+        data class DoseRow(val scheduledAt: String, val medicine: String, val dosage: String, val status: String)
+        val rows = mutableListOf<DoseRow>()
         var taken = 0
-        var skipped = 0
-        var pending = 0
         try {
-            val databaseFile = context.getDatabasePath("medimate.db")
+            val databaseFile = context.getDatabasePath("dosecare.db")
             if (databaseFile.exists()) {
                 SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
                     db.rawQuery(
-                        """SELECT status, COUNT(*) FROM dose_occurrences
-                           WHERE date(scheduled_at) = date('now', 'localtime')
-                           GROUP BY status""".trimIndent(), null,
+                        """SELECT o.scheduled_at, m.name, m.dosage, o.status
+                           FROM dose_occurrences o
+                           INNER JOIN medicines m ON o.medicine_id = m.id
+                           WHERE date(o.scheduled_at) = date('now', 'localtime')
+                           ORDER BY o.scheduled_at ASC""".trimIndent(), null,
                     ).use { cursor ->
                         while (cursor.moveToNext()) {
-                            val count = cursor.getInt(1)
-                            total += count
-                            when (cursor.getString(0)) {
-                                "TAKEN" -> taken += count
-                                "SKIPPED", "MISSED", "NOT_TAKEN" -> skipped += count
-                                else -> pending += count
-                            }
+                            val status = cursor.getString(3)
+                            if (status == "TAKEN") taken++
+                            rows.add(DoseRow(cursor.getString(0), cursor.getString(1), cursor.getString(2), status))
                         }
                     }
                 }
             }
         } catch (_: Exception) {
-            return "DoseCare daily report for $patient: medication data could not be read. Please check in with them."
+            return "DoseCare: medication data for $patient could not be read. Please check in with them."
         }
-        return if (total == 0) {
-            "DoseCare daily report for $patient: no doses were scheduled today."
-        } else {
-            "DoseCare daily report for $patient: $taken of $total doses recorded taken; $skipped missed/skipped; $pending still unrecorded."
+        val dateLabel = java.text.SimpleDateFormat("MMM d", java.util.Locale.US).format(java.util.Date())
+        if (rows.isEmpty()) {
+            return "DoseCare: Daily report for $patient ($dateLabel) — no doses were scheduled today."
         }
+        val maxLines = 12
+        val lines = rows.take(maxLines).joinToString("\n") { row ->
+            val time = parseIsoToMillis(row.scheduledAt)?.let {
+                java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(java.util.Date(it))
+            } ?: row.scheduledAt
+            val dosagePart = if (row.dosage.isBlank()) "" else " (${row.dosage})"
+            "$time ${row.medicine}$dosagePart — ${statusLabel(row.status)}"
+        }
+        val extra = if (rows.size > maxLines) "\n+ ${rows.size - maxLines} more" else ""
+        return "DoseCare: Daily report for $patient ($dateLabel)\n$lines$extra\n\n$taken of ${rows.size} doses taken today."
     }
 }
 
@@ -299,16 +319,186 @@ class DailyCaregiverReportBootReceiver : BroadcastReceiver() {
     }
 }
 
+private fun isoFormat(millis: Long): String {
+    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", java.util.Locale.US)
+    sdf.timeZone = java.util.TimeZone.getDefault()
+    return sdf.format(java.util.Date(millis))
+}
+
+/** Parses the ISO-8601 local-time strings produced by Dart's
+ * `DateTime.toIso8601String()` (no timezone suffix; the app always stores
+ * local wall-clock times) back into epoch millis. */
+private fun parseIsoToMillis(iso: String): Long? {
+    return try {
+        val cleaned = iso.trim()
+        if (cleaned.length < 19) return null
+        val datePart = cleaned.substring(0, 19)
+        var millisPart = 0
+        val dotIdx = cleaned.indexOf('.')
+        if (dotIdx in 0 until cleaned.length) {
+            val frac = cleaned.substring(dotIdx + 1).takeWhile { it.isDigit() }
+            millisPart = (frac.padEnd(3, '0').take(3)).toIntOrNull() ?: 0
+        }
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+        sdf.timeZone = java.util.TimeZone.getDefault()
+        val base = sdf.parse(datePart)?.time ?: return null
+        base + millisPart
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/** Writes a durable record of an automatic caregiver notification so the app
+ * can show an "alert history" and let the patient mark it acknowledged. */
+private fun insertCaregiverEvent(context: Context, medicineId: Int?, occurrenceId: Int?, eventType: String) {
+    try {
+        val databaseFile = context.getDatabasePath("dosecare.db")
+        if (!databaseFile.exists()) return
+        SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+            val values = android.content.ContentValues().apply {
+                if (medicineId != null) put("medicine_id", medicineId) else putNull("medicine_id")
+                if (occurrenceId != null) put("occurrence_id", occurrenceId) else putNull("occurrence_id")
+                put("event_type", eventType)
+                put("created_at", isoFormat(System.currentTimeMillis()))
+            }
+            db.insert("caregiver_events", null, values)
+        }
+    } catch (_: Exception) {
+    }
+}
+
+private fun medicineIdForOccurrence(context: Context, occurrenceId: Int): Int? {
+    return try {
+        val databaseFile = context.getDatabasePath("dosecare.db")
+        if (!databaseFile.exists()) return null
+        SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+            db.rawQuery("SELECT medicine_id FROM dose_occurrences WHERE id = ?", arrayOf(occurrenceId.toString())).use { cursor ->
+                if (cursor.moveToNext()) cursor.getInt(0) else null
+            }
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/** Android wipes every AlarmManager alarm on reboot (and on app update). This
+ * receiver re-arms every still-pending dose alarm directly from the SQLite
+ * database, without needing a running Flutter engine, mirroring
+ * AppController.syncReminderSchedule()'s query window and rules. */
+class DoseAlarmBootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
+            intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+
+        val prefs = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+        val notificationsEnabled = prefs.getBoolean("flutter.notifications_enabled", true)
+        val remindersEnabled = prefs.getBoolean("flutter.reminders_enabled", true)
+        if (!notificationsEnabled || !remindersEnabled) return
+
+        val caregiverAlertsEnabled = prefs.getBoolean("flutter.caregiver_alerts_enabled", false)
+        val toneName = prefs.getString("flutter.alarm_sound", null) ?: "Serene Bell"
+        val customToneUri = prefs.getString("flutter.device_alarm_sound_uri", null)?.takeUnless { it.isBlank() }
+        val canSendSms = ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.SEND_SMS,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        try {
+            val databaseFile = context.getDatabasePath("dosecare.db")
+            if (!databaseFile.exists()) return
+
+            var caregiverPhone: String? = null
+            var patientName: String? = null
+            val nowIso = isoFormat(System.currentTimeMillis())
+            val endIso = isoFormat(System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000)
+
+            SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+                db.rawQuery("SELECT caregiver_phone, name FROM users LIMIT 1", null).use { cursor ->
+                    if (cursor.moveToNext()) {
+                        caregiverPhone = cursor.getString(0)
+                        patientName = cursor.getString(1)
+                    }
+                }
+                db.rawQuery(
+                    """SELECT o.id, o.scheduled_at, m.name, m.dosage
+                       FROM dose_occurrences o
+                       INNER JOIN medicines m ON o.medicine_id = m.id
+                       WHERE o.status = 'PENDING' AND m.is_active = 1
+                         AND o.scheduled_at >= ? AND o.scheduled_at <= ?
+                       ORDER BY o.scheduled_at ASC""".trimIndent(),
+                    arrayOf(nowIso, endIso),
+                ).use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val occurrenceId = cursor.getInt(0)
+                        val scheduledAt = cursor.getString(1)
+                        val medicineName = cursor.getString(2)
+                        val dosage = cursor.getString(3)
+                        val triggerAtMillis = parseIsoToMillis(scheduledAt) ?: continue
+                        val phone = if (caregiverAlertsEnabled && canSendSms && !caregiverPhone.isNullOrBlank()) {
+                            caregiverPhone
+                        } else null
+                        DoseAlarmScheduler.schedule(
+                            context, occurrenceId, medicineName, dosage, triggerAtMillis,
+                            toneName, customToneUri, phone, patientName,
+                        )
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+    }
+}
+
+private fun isOccurrenceInactiveOrCancelled(context: Context, occurrenceId: Int): Boolean {
+    try {
+        val databaseFile = context.getDatabasePath("dosecare.db")
+        if (!databaseFile.exists()) return false
+        SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+            db.rawQuery(
+                """SELECT o.status, m.is_active
+                   FROM dose_occurrences o
+                   INNER JOIN medicines m ON o.medicine_id = m.id
+                   WHERE o.id = ?""".trimIndent(),
+                arrayOf(occurrenceId.toString())
+            ).use { cursor ->
+                if (!cursor.moveToNext()) {
+                    // No active occurrence row in database (medication or occurrence was deleted)
+                    return true
+                }
+                val status = cursor.getString(0)
+                val isActive = cursor.getInt(1)
+                if (isActive == 0 || (status != "PENDING" && status != "SNOOZED")) {
+                    return true
+                }
+            }
+        }
+    } catch (_: Exception) {
+        return false
+    }
+    return false
+}
+
 class CaregiverSmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        val occurrenceId = intent.getIntExtra(extraId, 0)
+        if (occurrenceId > 0 && isOccurrenceInactiveOrCancelled(context, occurrenceId)) {
+            DoseAlarmScheduler.cancelCaregiverSms(context, occurrenceId)
+            return
+        }
         val phone = intent.getStringExtra(extraCaregiverPhone)?.trim().orEmpty()
         if (phone.isEmpty()) return
         val patient = intent.getStringExtra(extraPatientName)?.trim().takeUnless { it.isNullOrEmpty() } ?: "The patient"
         val medicine = intent.getStringExtra(extraMedicine) ?: "medication"
         val dosage = intent.getStringExtra(extraDosage).orEmpty()
-        val message = "$patient has not recorded their $medicine${if (dosage.isEmpty()) "" else " ($dosage)"} dose 15 minutes after its scheduled time. Please check in with them."
+        val scheduledAtMillis = intent.getLongExtra(extraScheduledAtMillis, 0L)
+        val timeLabel = if (scheduledAtMillis > 0) {
+            " expected at " + java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(java.util.Date(scheduledAtMillis))
+        } else ""
+        val dosagePart = if (dosage.isEmpty()) "" else " ($dosage)"
+        val message = "DoseCare: $patient has not recorded their $medicine$dosagePart dose$timeLabel. Status: NOT TAKEN. Please check in with them."
         try {
             SmsManager.getDefault().sendTextMessage(phone, null, message, null, null)
+            val medicineId = if (occurrenceId > 0) medicineIdForOccurrence(context, occurrenceId) else null
+            insertCaregiverEvent(context, medicineId, occurrenceId.takeIf { it > 0 }, "DOSE_ALERT_SMS")
         } catch (_: SecurityException) {
         } catch (_: Exception) {
         }
@@ -317,7 +507,75 @@ class CaregiverSmsReceiver : BroadcastReceiver() {
 
 class DoseAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        val occurrenceId = intent.getIntExtra(extraId, 0)
+        if (occurrenceId > 0 && isOccurrenceInactiveOrCancelled(context, occurrenceId)) {
+            DoseAlarmScheduler.cancel(context, occurrenceId)
+            return
+        }
         ContextCompat.startForegroundService(context, Intent(context, DoseAlarmService::class.java).apply { putExtras(intent) })
+    }
+}
+
+/** Records notification actions directly in SQLite so they work while Flutter
+ * is closed. This mirrors DatabaseHelper.recordOccurrenceAction(). */
+private fun recordOccurrenceActionFromAlarm(
+    context: Context,
+    occurrenceId: Int,
+    status: String,
+): Boolean {
+    if (occurrenceId <= 0) return false
+    try {
+        val databaseFile = context.getDatabasePath("dosecare.db")
+        if (!databaseFile.exists()) return false
+        SQLiteDatabase.openDatabase(databaseFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+            db.beginTransaction()
+            try {
+                var medicineId = 0
+                var scheduleId = 0
+                var scheduledAt = ""
+                var doseCount = 1
+                db.rawQuery(
+                    """SELECT o.medicine_id, o.schedule_id, o.scheduled_at, s.dose_count
+                       FROM dose_occurrences o
+                       INNER JOIN schedules s ON s.id = o.schedule_id
+                       WHERE o.id = ? AND o.status IN ('PENDING', 'SNOOZED', 'MISSED')""".trimIndent(),
+                    arrayOf(occurrenceId.toString()),
+                ).use { cursor ->
+                    if (!cursor.moveToFirst()) return false
+                    medicineId = cursor.getInt(0)
+                    scheduleId = cursor.getInt(1)
+                    scheduledAt = cursor.getString(2)
+                    doseCount = cursor.getInt(3).coerceAtLeast(1)
+                }
+                val now = isoFormat(System.currentTimeMillis())
+                val values = android.content.ContentValues().apply {
+                    put("status", status)
+                    put("action_time", now)
+                }
+                if (db.update("dose_occurrences", values, "id = ?", arrayOf(occurrenceId.toString())) != 1) {
+                    return false
+                }
+                db.insert("dose_history", null, android.content.ContentValues().apply {
+                    put("medicine_id", medicineId)
+                    put("schedule_id", scheduleId)
+                    put("scheduled_time", scheduledAt)
+                    put("action_time", now)
+                    put("status", status)
+                })
+                if (status == "TAKEN") {
+                    db.execSQL(
+                        "UPDATE medicines SET remaining_quantity = MAX(0, remaining_quantity - ?) WHERE id = ?",
+                        arrayOf(doseCount, medicineId),
+                    )
+                }
+                db.setTransactionSuccessful()
+                return true
+            } finally {
+                db.endTransaction()
+            }
+        }
+    } catch (_: Exception) {
+        return false
     }
 }
 
@@ -330,16 +588,27 @@ class DoseAlarmActionReceiver : BroadcastReceiver() {
         }
 
         if (id > 0) {
-            DoseAlarmService.dismissDose(context, id)
-            if (intent.action == snoozeAction) {
-                DoseAlarmScheduler.schedule(
-                    context, id,
-                    intent.getStringExtra(extraMedicine) ?: "Medication",
-                    intent.getStringExtra(extraDosage) ?: "",
-                    System.currentTimeMillis() + 10 * 60 * 1000L,
-                    intent.getStringExtra(extraTone) ?: "Serene Bell",
-                    intent.getStringExtra(extraCustomToneUri),
-                )
+            when (intent.action) {
+                takeAction -> {
+                    if (!recordOccurrenceActionFromAlarm(context, id, "TAKEN")) return
+                    DoseAlarmScheduler.cancelCaregiverSms(context, id)
+                    DoseAlarmService.dismissDose(context, id)
+                }
+                snoozeAction -> {
+                    if (!recordOccurrenceActionFromAlarm(context, id, "SNOOZED")) return
+                    DoseAlarmService.dismissDose(context, id)
+                    DoseAlarmScheduler.schedule(
+                        context, id,
+                        intent.getStringExtra(extraMedicine) ?: "Medication",
+                        intent.getStringExtra(extraDosage) ?: "",
+                        System.currentTimeMillis() + 5 * 60 * 1000L,
+                        intent.getStringExtra(extraTone) ?: "Serene Bell",
+                        intent.getStringExtra(extraCustomToneUri),
+                        intent.getStringExtra(extraCaregiverPhone),
+                        intent.getStringExtra(extraPatientName),
+                    )
+                }
+                stopAction -> DoseAlarmService.dismissDose(context, id)
             }
         }
     }
@@ -359,8 +628,10 @@ class DoseAlarmService : Service() {
             val dosage = intent?.getStringExtra(extraDosage) ?: ""
             val tone = intent?.getStringExtra(extraTone) ?: "Serene Bell"
             val customToneUri = intent?.getStringExtra(extraCustomToneUri)
+            val caregiverPhone = intent?.getStringExtra(extraCaregiverPhone)
+            val patientName = intent?.getStringExtra(extraPatientName)
 
-            activeDoses[id] = ActiveDose(id, medicine, dosage, tone, customToneUri)
+            activeDoses[id] = ActiveDose(id, medicine, dosage, tone, customToneUri, caregiverPhone, patientName)
 
             createChannels()
 
@@ -450,15 +721,25 @@ class DoseAlarmService : Service() {
         val shortSummary = activeDoses.values.joinToString(", ") { "${it.medicine} (${it.dosage})" }
         val bulletList = activeDoses.values.joinToString("\n") { "• ${it.medicine}: ${it.dosage}" }
 
-        val stopAllIntent = Intent(this, DoseAlarmActionReceiver::class.java).apply {
-            action = stopAllAction
+        val activeDose = activeDoses.values.first()
+        fun action(action: String, title: String, requestCode: Int): NotificationCompat.Action {
+            val intent = Intent(this, DoseAlarmActionReceiver::class.java).apply {
+                this.action = action
+                data = Uri.parse("dosecare://foreground-action/${activeDose.id}/$requestCode")
+                putExtra(extraId, activeDose.id)
+                putExtra(extraMedicine, activeDose.medicine)
+                putExtra(extraDosage, activeDose.dosage)
+                putExtra(extraTone, activeDose.tone)
+                putExtra(extraCustomToneUri, activeDose.customToneUri)
+                putExtra(extraCaregiverPhone, activeDose.caregiverPhone)
+                putExtra(extraPatientName, activeDose.patientName)
+            }
+            val pending = PendingIntent.getBroadcast(
+                this, requestCode, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            return NotificationCompat.Action(0, title, pending)
         }
-        val stopAllPending = PendingIntent.getBroadcast(
-            this,
-            999998,
-            stopAllIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
 
         val builder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -470,7 +751,9 @@ class DoseAlarmService : Service() {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setOngoing(true)
             .setAutoCancel(false)
-            .addAction(NotificationCompat.Action(0, "Stop All", stopAllPending))
+            .addAction(action(takeAction, "Take", 300000 + activeDose.id))
+            .addAction(action(snoozeAction, "Snooze 5 min", 400000 + activeDose.id))
+            .addAction(action(stopAction, "Stop", 500000 + activeDose.id))
 
         return builder.build()
     }
@@ -485,6 +768,8 @@ class DoseAlarmService : Service() {
                 putExtra(extraDosage, dose.dosage)
                 putExtra(extraTone, dose.tone)
                 putExtra(extraCustomToneUri, dose.customToneUri)
+                putExtra(extraCaregiverPhone, dose.caregiverPhone)
+                putExtra(extraPatientName, dose.patientName)
             }
             val pending = PendingIntent.getBroadcast(
                 this,
@@ -512,8 +797,9 @@ class DoseAlarmService : Service() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
-            .addAction(action(stopAction, "Dismiss", 100000 + dose.id))
-            .addAction(action(snoozeAction, "Snooze 10m", 200000 + dose.id))
+            .addAction(action(takeAction, "Take", 100000 + dose.id))
+            .addAction(action(snoozeAction, "Snooze 5 min", 200000 + dose.id))
+            .addAction(action(stopAction, "Stop", 300000 + dose.id))
             .build()
     }
 

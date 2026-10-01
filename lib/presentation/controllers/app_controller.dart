@@ -1,8 +1,11 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:workmanager/workmanager.dart';
 import '../../core/database/database_helper.dart';
+import '../../core/email/caregiver_email_service.dart' as caregiver_email;
+import '../../core/email/caregiver_email_service.dart' show dailyEmailTask, weeklyEmailTask, delayUntilNext;
 import '../../core/notifications/notification_service.dart';
 import '../../core/safety/drug_interactions.dart';
 import '../../data/models/user_model.dart';
@@ -126,7 +129,13 @@ class AppController extends ChangeNotifier {
       for (final occurrenceId in staleAlarmIds) {
         await NotificationService.instance.cancelDoseReminder(occurrenceId);
       }
-      if (staleAlarmIds.isNotEmpty) {
+      final orphanedIds =
+          await DatabaseHelper.instance.getOrphanedOccurrenceIds();
+      if (orphanedIds.isNotEmpty) {
+        await NotificationService.instance.cancelDoseReminders(orphanedIds);
+        await DatabaseHelper.instance.cleanUpOrphanedOccurrences();
+      }
+      if (staleAlarmIds.isNotEmpty || orphanedIds.isNotEmpty) {
         await refreshData();
       }
     } catch (error) {
@@ -379,6 +388,15 @@ class AppController extends ChangeNotifier {
     return DrugSafetyEngine.checkInteractions(newMedicineName, currentNames);
   }
 
+  Future<List<Map<String, dynamic>>> getCaregiverEvents({int limit = 50}) {
+    return DatabaseHelper.instance.getCaregiverEvents(limit: limit);
+  }
+
+  Future<void> acknowledgeCaregiverEvent(int eventId) async {
+    await DatabaseHelper.instance.acknowledgeCaregiverEvent(eventId);
+    notifyListeners();
+  }
+
   Future<int> addMedicineWithSchedule({
     required MedicineModel medicine,
     required String timeOfDay,
@@ -433,6 +451,60 @@ class AppController extends ChangeNotifier {
     await syncReminderSchedule();
   }
 
+  /// Registers or cancels the background email-report tasks based on the two
+  /// SharedPreferences toggles. Sending only happens on Android, where
+  /// Workmanager is initialized (see main.dart).
+  Future<void> resyncEmailReports() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    final prefs = await SharedPreferences.getInstance();
+    final dailyEnabled = prefs.getBool('caregiver_email_daily_enabled') ?? false;
+    final weeklyEnabled = prefs.getBool('caregiver_email_weekly_enabled') ?? false;
+
+    if (dailyEnabled) {
+      await Workmanager().registerPeriodicTask(
+        'dailyCaregiverEmailTask',
+        dailyEmailTask,
+        frequency: const Duration(hours: 24),
+        initialDelay: delayUntilNext(hour: 23, minute: 30),
+        constraints: Constraints(networkType: NetworkType.connected),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+      );
+    } else {
+      await Workmanager().cancelByUniqueName('dailyCaregiverEmailTask');
+    }
+
+    if (weeklyEnabled) {
+      await Workmanager().registerPeriodicTask(
+        'weeklyCaregiverEmailTask',
+        weeklyEmailTask,
+        frequency: const Duration(days: 7),
+        initialDelay: delayUntilNext(hour: 23, minute: 45, weekday: DateTime.sunday),
+        constraints: Constraints(networkType: NetworkType.connected),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+      );
+    } else {
+      await Workmanager().cancelByUniqueName('weeklyCaregiverEmailTask');
+    }
+  }
+
+  Future<void> saveCaregiverEmailCredentials(String gmailAddress, String appPassword) {
+    return caregiver_email.saveCaregiverEmailCredentials(gmailAddress, appPassword);
+  }
+
+  /// Updates only the sender address, leaving a previously saved App
+  /// Password untouched (used when the password field is left blank).
+  Future<void> saveCaregiverEmailAddressOnly(String gmailAddress) {
+    return caregiver_email.saveCaregiverEmailAddress(gmailAddress);
+  }
+
+  Future<bool> hasCaregiverEmailCredentials() {
+    return caregiver_email.hasCaregiverEmailCredentials();
+  }
+
+  Future<String?> getCaregiverEmailSenderAddress() {
+    return caregiver_email.getCaregiverEmailSenderAddress();
+  }
+
   Future<void> clearAllData() async {
     isLoading = true;
     _isResetting = true;
@@ -466,6 +538,19 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> deleteMedicine(int id) async {
+    try {
+      final occurrenceIds =
+          await DatabaseHelper.instance.getPendingOccurrenceIdsForMedicine(id);
+      if (occurrenceIds.isNotEmpty) {
+        await NotificationService.instance.cancelDoseReminders(occurrenceIds);
+      }
+      await NotificationService.instance.cancelDoseReminder(id);
+      await NotificationService.instance.cancelLowStockNotification(id);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('low_stock_notified_$id');
+    } catch (error) {
+      debugPrint('DoseCare reminder cancellation error during delete: $error');
+    }
     await DatabaseHelper.instance.deleteMedicine(id);
     await refreshData();
   }

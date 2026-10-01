@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:medimate/core/constants/app_colors.dart';
-import 'package:medimate/core/constants/app_typography.dart';
-import 'package:medimate/data/models/medicine_model.dart';
-import 'package:medimate/presentation/controllers/app_controller.dart';
-import 'package:medimate/presentation/widgets/pill_visualizer.dart';
-import 'package:medimate/presentation/widgets/dosecare_logo.dart';
+import 'package:dosecare/core/constants/app_colors.dart';
+import 'package:dosecare/core/constants/app_typography.dart';
+import 'package:dosecare/data/models/medicine_model.dart';
+import 'package:dosecare/presentation/controllers/app_controller.dart';
+import 'package:dosecare/presentation/widgets/pill_visualizer.dart';
+import 'package:dosecare/presentation/widgets/dosecare_logo.dart';
 
 class InventoryScreen extends StatefulWidget {
   final VoidCallback? onAddMedicine;

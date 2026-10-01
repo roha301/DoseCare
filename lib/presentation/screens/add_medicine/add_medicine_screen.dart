@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:medimate/core/constants/app_colors.dart';
-import 'package:medimate/core/constants/app_typography.dart';
-import 'package:medimate/core/database/database_helper.dart';
-import 'package:medimate/data/models/medicine_model.dart';
-import 'package:medimate/data/models/schedule_model.dart';
-import 'package:medimate/presentation/controllers/app_controller.dart';
-import 'package:medimate/presentation/widgets/pill_visualizer.dart';
-import 'package:medimate/presentation/widgets/date_range_calendar_view.dart';
-import 'package:medimate/presentation/widgets/interaction_warning_dialog.dart';
-import 'package:medimate/presentation/widgets/dosecare_logo.dart';
+import 'package:dosecare/core/constants/app_colors.dart';
+import 'package:dosecare/core/constants/app_typography.dart';
+import 'package:dosecare/core/database/database_helper.dart';
+import 'package:dosecare/data/models/medicine_model.dart';
+import 'package:dosecare/data/models/schedule_model.dart';
+import 'package:dosecare/presentation/controllers/app_controller.dart';
+import 'package:dosecare/presentation/widgets/pill_visualizer.dart';
+import 'package:dosecare/presentation/widgets/date_range_calendar_view.dart';
+import 'package:dosecare/presentation/widgets/interaction_warning_dialog.dart';
+import 'package:dosecare/presentation/widgets/dosecare_logo.dart';
 
 class AddMedicineScreen extends StatefulWidget {
   final VoidCallback? onSaved;
@@ -26,6 +26,14 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   final TextEditingController _totalQtyController = TextEditingController(text: '30');
   final TextEditingController _thresholdController = TextEditingController(text: '5');
   final TextEditingController _imprintController = TextEditingController();
+  TextEditingController? _autocompleteTextController;
+  int _formResetVersion = 0;
+
+  static const List<String> _availableUnits = ['mg', 'mcg', 'g', 'ml', 'IU', 'drops', 'puffs', '%'];
+  static final RegExp _strengthRegex = RegExp(
+    r'(\d+(?:\.\d+)?)\s*(mg|mcg|g|ml|iu(?:\/ml)?|drops|puffs|%)\b',
+    caseSensitive: false,
+  );
 
   String _selectedUnit = 'mg';
   String _selectedShape = 'capsule';
@@ -40,6 +48,107 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     {'label': 'Morning', 'time': '08:00', 'icon': Icons.wb_sunny_rounded, 'color': AppColors.primary},
     {'label': 'Evening', 'time': '20:00', 'icon': Icons.bedtime_rounded, 'color': AppColors.secondary},
   ];
+
+  void _resetForm() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _autocompleteTextController?.clear();
+    _autocompleteTextController = null;
+    _nameController.clear();
+    _strengthController.clear();
+    _imprintController.clear();
+    _totalQtyController.text = '30';
+    _thresholdController.text = '5';
+    setState(() {
+      // Recreate Autocomplete after each save. Its internal text controller
+      // otherwise retains the previously selected medicine.
+      _formResetVersion++;
+      _selectedUnit = 'mg';
+      _selectedShape = 'capsule';
+      _selectedColor = 'teal';
+      _selectedFood = 'With Food';
+      _selectedFrequency = 'Every day';
+      _courseStartDate = DateTime.now();
+      _courseEndDate = DateTime.now().add(const Duration(days: 6));
+      _reminderSlots.clear();
+      _reminderSlots.addAll([
+        {'label': 'Morning', 'time': '08:00', 'icon': Icons.wb_sunny_rounded, 'color': AppColors.primary},
+        {'label': 'Evening', 'time': '20:00', 'icon': Icons.bedtime_rounded, 'color': AppColors.secondary},
+      ]);
+    });
+    _formKey.currentState?.reset();
+  }
+
+  void _applyMedicineSelection(String selection) {
+    if (selection.trim().isEmpty) return;
+
+    // 1. Check if power/unit is present in the selected name
+    final match = _strengthRegex.firstMatch(selection);
+    if (match != null) {
+      _strengthController.text = match.group(1) ?? '';
+      final rawUnit = (match.group(2) ?? 'mg').toLowerCase();
+      if (rawUnit.startsWith('iu')) {
+        _selectedUnit = 'IU';
+      } else if (rawUnit == 'mcg') {
+        _selectedUnit = 'mcg';
+      } else if (rawUnit == 'g') {
+        _selectedUnit = 'g';
+      } else if (rawUnit == 'ml') {
+        _selectedUnit = 'ml';
+      } else if (rawUnit == 'drops') {
+        _selectedUnit = 'drops';
+      } else if (rawUnit == 'puffs') {
+        _selectedUnit = 'puffs';
+      } else if (rawUnit == '%') {
+        _selectedUnit = '%';
+      } else {
+        _selectedUnit = 'mg';
+      }
+    } else {
+      // Power is not mentioned in name: clear strength so user can manually add
+      _strengthController.clear();
+      _selectedUnit = 'mg';
+    }
+
+    // 2. Set clean medication name (strip power so it does not duplicate in dosage)
+    final cleanName = selection
+        .replaceAll(_strengthRegex, '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final displayName = cleanName.isNotEmpty ? cleanName : selection;
+
+    _nameController.text = displayName;
+    if (_autocompleteTextController != null && _autocompleteTextController!.text != displayName) {
+      _autocompleteTextController!.text = displayName;
+    }
+
+    // 3. Smart Form Factor Detection
+    final lower = selection.toLowerCase();
+    if (lower.contains('syrup') || lower.contains('liquid') || lower.contains('suspension') || lower.contains('drops') || lower.contains('solution') || lower.contains('gel') || lower.contains('lotion')) {
+      _selectedShape = 'liquid';
+      if (match == null) _selectedUnit = 'ml';
+      if (_totalQtyController.text == '30' || _totalQtyController.text.isEmpty) {
+        _totalQtyController.text = '100';
+      }
+    } else if (lower.contains('inhaler') || lower.contains('puff') || lower.contains('spray') || lower.contains('rotahaler') || lower.contains('respicap')) {
+      _selectedShape = 'inhaler';
+      if (match == null) _selectedUnit = 'puffs';
+      if (_totalQtyController.text == '30' || _totalQtyController.text.isEmpty) {
+        _totalQtyController.text = '120';
+      }
+    } else if (lower.contains('shot') || lower.contains('injection') || lower.contains('vaccine') || lower.contains('pen') || lower.contains('vial')) {
+      _selectedShape = 'injection';
+      if (match == null) _selectedUnit = 'ml';
+      if (_totalQtyController.text == '30' || _totalQtyController.text.isEmpty) {
+        _totalQtyController.text = '10';
+      }
+    } else if (lower.contains('capsule') || lower.contains('cap')) {
+      _selectedShape = 'capsule';
+    } else if (lower.contains('tablet') || lower.contains('tab')) {
+      _selectedShape = 'round';
+    }
+
+    setState(() {});
+  }
 
   String _storeTime(TimeOfDay time) => '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
 
@@ -146,10 +255,8 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
 
 
 
-    // Reset controllers
-    _nameController.clear();
-    _strengthController.clear();
-    _imprintController.clear();
+    // Reset form to clean initial state
+    _resetForm();
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -191,6 +298,22 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Clear / Reset Form',
+            onPressed: () {
+              _resetForm();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Form reset to default'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -549,6 +672,14 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
           Text('Medication Name', style: AppTypography.labelMd(color: AppColors.onSurfaceVariant)),
           const SizedBox(height: 6),
           Autocomplete<String>(
+            key: ValueKey('medicine-autocomplete-$_formResetVersion'),
+            displayStringForOption: (String option) {
+              final clean = option
+                  .replaceAll(_strengthRegex, '')
+                  .replaceAll(RegExp(r'\s+'), ' ')
+                  .trim();
+              return clean.isNotEmpty ? clean : option;
+            },
             optionsBuilder: (TextEditingValue textEditingValue) {
               final query = textEditingValue.text.trim();
               if (query.isEmpty) return const Iterable<String>.empty();
@@ -563,43 +694,17 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
               return matches;
             },
             onSelected: (String selection) {
-              _nameController.text = selection;
-              final lower = selection.toLowerCase();
-              if (lower.contains('syrup') || lower.contains('liquid') || lower.contains('suspension') || lower.contains('drops') || lower.contains('solution') || lower.contains('gel')) {
-                _selectedShape = 'liquid';
-                _selectedUnit = 'ml';
-                if (_totalQtyController.text == '30' || _totalQtyController.text.isEmpty) {
-                  _totalQtyController.text = '100';
-                }
-              } else if (lower.contains('inhaler') || lower.contains('puff') || lower.contains('spray')) {
-                _selectedShape = 'inhaler';
-                _selectedUnit = 'puffs';
-                if (_totalQtyController.text == '30' || _totalQtyController.text.isEmpty) {
-                  _totalQtyController.text = '120';
-                }
-              } else if (lower.contains('shot') || lower.contains('injection') || lower.contains('vaccine')) {
-                _selectedShape = 'injection';
-                _selectedUnit = 'ml';
-                if (_totalQtyController.text == '30' || _totalQtyController.text.isEmpty) {
-                  _totalQtyController.text = '10';
-                }
-              }
-              // Auto-fill strength if present in name e.g. "Amoxicillin 500mg"
-              final match = RegExp(r'(\d+(?:\.\d+)?)\s*(mg|mcg|ml|IU|iu)').firstMatch(selection);
-              if (match != null) {
-                _strengthController.text = match.group(1) ?? '';
-                final unitStr = match.group(2)?.toLowerCase() ?? 'mg';
-                _selectedUnit = ['mg', 'mcg', 'ml', 'drops', 'puffs'].contains(unitStr) ? unitStr : 'mg';
-              }
-              setState(() {});
+              _applyMedicineSelection(selection);
             },
             fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-              // Keep our controller in sync
-              controller.addListener(() {
-                if (_nameController.text != controller.text) {
-                  _nameController.text = controller.text;
-                }
-              });
+              if (_autocompleteTextController != controller) {
+                _autocompleteTextController = controller;
+                controller.addListener(() {
+                  if (_nameController.text != controller.text) {
+                    _nameController.text = controller.text;
+                  }
+                });
+              }
               return TextFormField(
                 controller: controller,
                 focusNode: focusNode,
@@ -612,11 +717,16 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                           onPressed: () {
                             controller.clear();
                             _nameController.clear();
+                            _strengthController.clear();
                             setState(() {});
                           },
                         )
                       : null,
                 ),
+                onFieldSubmitted: (val) {
+                  _applyMedicineSelection(val);
+                  onFieldSubmitted();
+                },
                 validator: (v) => v == null || v.trim().isEmpty ? 'Please enter medicine name' : null,
               );
             },
@@ -686,7 +796,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                     const SizedBox(height: 6),
                     TextFormField(
                       controller: _strengthController,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(hintText: '500'),
                       validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
                     ),
@@ -702,9 +812,10 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                     Text('Unit', style: AppTypography.labelMd(color: AppColors.onSurfaceVariant)),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
-                      initialValue: _selectedUnit,
+                      key: ValueKey(_selectedUnit),
+                      initialValue: _availableUnits.contains(_selectedUnit) ? _selectedUnit : 'mg',
                       decoration: const InputDecoration(),
-                      items: ['mg', 'mcg', 'ml', 'drops', 'puffs'].map((u) {
+                      items: _availableUnits.map((u) {
                         return DropdownMenuItem(value: u, child: Text(u));
                       }).toList(),
                       onChanged: (val) => setState(() => _selectedUnit = val ?? 'mg'),
@@ -784,7 +895,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  '${_selectedShape.toUpperCase()} • ${_selectedColor.toUpperCase()} • ${_strengthController.text} $_selectedUnit',
+                  '${_selectedShape.toUpperCase()} • ${_selectedColor.toUpperCase()}${_strengthController.text.isNotEmpty ? ' • ${_strengthController.text} $_selectedUnit' : ''}',
                   style: AppTypography.labelSm(color: AppColors.onSurfaceVariant),
                 ),
               ],
@@ -897,7 +1008,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   }
 
   Widget _buildScheduleSection() {
-    final frequencies = ['Every day', 'Specific dates', 'Specific days', 'Every 2 days', 'As needed (PRN)'];
+    final frequencies = ['Every day', 'Specific dates', 'Every 2 days', 'As needed (PRN)'];
     final isPrn = _selectedFrequency == 'As needed (PRN)';
     final foodChips = [
       {'label': 'With Food', 'icon': Icons.restaurant_menu_rounded},
@@ -1095,7 +1206,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                                 ),
                               ),
                               Text(
-                                '${slot['label']} • 1 ${_selectedShape.toUpperCase()} (${_strengthController.text} $_selectedUnit)',
+                                '${slot['label']} • 1 ${_selectedShape.toUpperCase()}${_strengthController.text.isNotEmpty ? ' (${_strengthController.text} $_selectedUnit)' : ''}',
                                 style: AppTypography.bodySm(color: AppColors.onSurfaceVariant),
                                 overflow: TextOverflow.ellipsis,
                               ),

@@ -10,7 +10,7 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
   void Function(NotificationResponse response)? onNotificationResponse;
-  static const MethodChannel _alarmChannel = MethodChannel('medimate/dose_alarm');
+  static const MethodChannel _alarmChannel = MethodChannel('dosecare/dose_alarm');
 
   NotificationService._init();
 
@@ -178,26 +178,35 @@ class NotificationService {
         await _alarmChannel.invokeMethod<void>('cancel', {'occurrenceId': occurrenceId});
       }
       await _notificationsPlugin.cancel(id: 500000 + occurrenceId);
+      await _notificationsPlugin.cancel(id: 700000 + occurrenceId);
     } catch (e) {
       debugPrint('Unable to cancel medication reminder: $e');
     }
   }
 
   /// Cancels many native exact alarms in one platform call. This is used by
-  /// Reset All Data so large histories do not block the UI.
+  /// Reset All Data and medication deletion so large histories do not block the UI.
   Future<void> cancelDoseReminders(Iterable<int> occurrenceIds) async {
     final ids = occurrenceIds.toList(growable: false);
     if (ids.isEmpty) return;
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
         await _alarmChannel.invokeMethod<void>('cancelBatch', {'occurrenceIds': ids});
-      } else {
-        for (final id in ids) {
-          await _notificationsPlugin.cancel(id: 500000 + id);
-        }
+      }
+      for (final id in ids) {
+        await _notificationsPlugin.cancel(id: 500000 + id);
+        await _notificationsPlugin.cancel(id: 700000 + id);
       }
     } catch (e) {
       debugPrint('Unable to cancel medication reminders: $e');
+    }
+  }
+
+  Future<void> cancelLowStockNotification(int medicineId) async {
+    try {
+      await _notificationsPlugin.cancel(id: 20000 + medicineId);
+    } catch (e) {
+      debugPrint('Unable to cancel low stock notification: $e');
     }
   }
 

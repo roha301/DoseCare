@@ -31,6 +31,8 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+/functions/lib/
+/functions/node_modules/
 /coverage/
 
 # Symbolication related

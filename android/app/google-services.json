@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "493491523177",
+    "project_id": "dosecare-912e5",
+    "storage_bucket": "dosecare-912e5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:493491523177:android:5859673e7407c15a385cf8",
+        "android_client_info": {
+          "package_name": "com.dosecare.dosecare"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjefuLblQBtHLal2lGX4-9btR8b-RXd1A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

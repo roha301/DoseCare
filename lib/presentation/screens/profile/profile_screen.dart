@@ -1,12 +1,15 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:medimate/core/constants/app_colors.dart';
-import 'package:medimate/core/constants/app_typography.dart';
-import 'package:medimate/core/notifications/notification_service.dart';
-import 'package:medimate/data/models/user_model.dart';
-import 'package:medimate/presentation/controllers/app_controller.dart';
-import 'package:medimate/presentation/screens/assistant/assistant_screen.dart';
-import 'package:medimate/presentation/widgets/dosecare_logo.dart';
+import 'package:dosecare/core/constants/app_colors.dart';
+import 'package:dosecare/core/constants/app_typography.dart';
+import 'package:dosecare/core/auth/auth_service.dart';
+import 'package:dosecare/core/notifications/notification_service.dart';
+import 'package:dosecare/data/models/user_model.dart';
+import 'package:dosecare/presentation/controllers/app_controller.dart';
+import 'package:dosecare/presentation/widgets/dosecare_logo.dart';
+import 'package:dosecare/presentation/screens/profile/caregiver_alerts_history_screen.dart';
+
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -25,10 +28,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _doseTakenAlerts = true;
   bool _caregiverSync = true;
   bool _dailyCaregiverReport = false;
+  bool _emailDailyReport = false;
+  bool _emailWeeklyReport = false;
   bool _appLockEnabled = false;
   String _alarmSound = 'Serene Bell';
   String? _deviceAlarmSoundUri;
   int _snoozeDuration = 10;
+  bool _googleSignInInProgress = false;
 
   // ── Patient profile fields ──────────────────────────────────────────────────
   String _bloodGroup = '';
@@ -91,6 +97,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
         : trimmed;
   }
 
+  Widget _countryCodePicker({
+    required String value,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return SizedBox(
+      width: 96,
+      child: DropdownButtonFormField<String>(
+        value: value,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'Code',
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        ),
+        // Keep the selected field compact, while the menu still shows the
+        // matching country name to make choosing a code unambiguous.
+        selectedItemBuilder: (context) => _countryCodes.values
+            .map((code) => Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(code),
+                ))
+            .toList(),
+        items: _countryCodes.entries
+            .map(
+              (entry) => DropdownMenuItem(
+                value: entry.value,
+                child: Text('${entry.value} ${entry.key}'),
+              ),
+            )
+            .toList(),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -106,6 +147,171 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _onStateChange() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _signInWithGoogle() async {
+    if (_googleSignInInProgress) return;
+
+    setState(() => _googleSignInInProgress = true);
+    try {
+      final credential = await AuthService.instance.signInWithGoogle();
+      if (!mounted || credential == null) return;
+      final profileWasPrefilled = await _prefillProfileFromGoogle(
+        credential.user?.displayName,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            profileWasPrefilled
+                ? 'Signed in and added your Google name to your profile.'
+                : 'Signed in as ${credential.user?.email ?? 'your Google account'}.',
+          ),
+          backgroundColor: AppColors.adherenceGreenText,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Google sign-in failed. Please try again.'),
+          backgroundColor: AppColors.alertCoral,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _googleSignInInProgress = false);
+    }
+  }
+
+  /// Google only shares basic account information. Seed a new local profile
+  /// with the account name, but never replace a name the patient has saved.
+  Future<bool> _prefillProfileFromGoogle(String? googleDisplayName) async {
+    final name = googleDisplayName?.trim() ?? '';
+    final current = _controller.user;
+    final hasSavedName = current != null &&
+        current.name.trim().isNotEmpty &&
+        current.name.trim().toLowerCase() != 'user';
+    if (name.isEmpty || hasSavedName) return false;
+
+    await _controller.updateUserProfile(
+      (current ??
+              UserModel(
+                name: '',
+                age: 0,
+                gender: '',
+                createdAt: DateTime.now().toIso8601String(),
+              ))
+          .copyWith(name: name),
+    );
+    return true;
+  }
+
+  Future<void> _signOutOfGoogle() async {
+    try {
+      await AuthService.instance.signOut();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed out of Google.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not sign out. Please try again.'),
+          backgroundColor: AppColors.alertCoral,
+        ),
+      );
+    }
+  }
+
+  Widget _googleAccountCard() {
+    return StreamBuilder(
+      stream: AuthService.instance.authStateChanges,
+      builder: (context, snapshot) {
+        final firebaseUser = snapshot.data;
+        final signedIn = firebaseUser != null;
+        final accountName = firebaseUser?.displayName?.trim();
+        final photoUrl = firebaseUser?.photoURL?.trim();
+        final initial = (accountName?.isNotEmpty ?? false)
+            ? accountName![0].toUpperCase()
+            : 'G';
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: signedIn
+                    ? AppColors.primaryFixed
+                    : AppColors.surfaceContainerHigh,
+                backgroundImage: photoUrl?.isNotEmpty == true
+                    ? NetworkImage(photoUrl!)
+                    : null,
+                child: photoUrl?.isNotEmpty == true
+                    ? null
+                    : Text(
+                        initial,
+                        style: AppTypography.titleMd(color: AppColors.primary)
+                            .copyWith(fontWeight: FontWeight.bold),
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      signedIn ? 'Google account connected' : 'Back up with Google',
+                      style: AppTypography.labelMd(color: AppColors.onSurface)
+                          .copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      signedIn
+                          ? firebaseUser!.email ?? 'Signed in to Firebase'
+                          : 'Sign in securely with your Google account.',
+                      style: AppTypography.bodySm(color: AppColors.onSurfaceVariant),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (signedIn)
+                TextButton(
+                  onPressed: _signOutOfGoogle,
+                  child: const Text('Sign out'),
+                )
+              else
+                ElevatedButton(
+                  onPressed: _googleSignInInProgress ? null : _signInWithGoogle,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    minimumSize: Size.zero,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: _googleSignInInProgress
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Sign in'),
+                ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _loadPrefs() async {
@@ -130,6 +336,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _doseTakenAlerts = prefs.getBool('dose_taken_alerts') ?? true;
       _caregiverSync = prefs.getBool('caregiver_alerts_enabled') ?? false;
       _dailyCaregiverReport = prefs.getBool('daily_caregiver_report_enabled') ?? false;
+      _emailDailyReport = prefs.getBool('caregiver_email_daily_enabled') ?? false;
+      _emailWeeklyReport = prefs.getBool('caregiver_email_weekly_enabled') ?? false;
       _appLockEnabled = prefs.getBool('app_lock_enabled') ?? false;
       _alarmSound = prefs.getString('alarm_sound') ?? 'Device alarm tone';
       _deviceAlarmSoundUri = prefs.getString('device_alarm_sound_uri');
@@ -158,6 +366,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await prefs.setBool('dose_taken_alerts', _doseTakenAlerts);
     await prefs.setBool('caregiver_alerts_enabled', _caregiverSync);
     await prefs.setBool('daily_caregiver_report_enabled', _dailyCaregiverReport);
+    await prefs.setBool('caregiver_email_daily_enabled', _emailDailyReport);
+    await prefs.setBool('caregiver_email_weekly_enabled', _emailWeeklyReport);
     await prefs.setBool('app_lock_enabled', _appLockEnabled);
     await prefs.setString('alarm_sound', _alarmSound);
     await prefs.setString('device_alarm_sound_uri', _deviceAlarmSoundUri ?? '');
@@ -186,6 +396,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final heightCtrl = TextEditingController(text: _height);
     final weightCtrl = TextEditingController(text: _weight);
     final insuranceCtrl = TextEditingController(text: _insuranceProvider);
+    final customConditionCtrl = TextEditingController();
 
     String? localGender = const ['Male', 'Female', 'Other'].contains(current?.gender) ? current!.gender : null;
     String? localBloodGroup = _bloodGroups.contains(_bloodGroup) ? _bloodGroup : null;
@@ -193,13 +404,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String? localOccupation = _occupations.contains(_occupation) ? _occupation : null;
     String? localSpecialization = _specializations.contains(_doctorSpecialization) ? _doctorSpecialization : null;
     List<String> localConditions = List.from(_conditions);
+    bool showCustomConditionInput = false;
     String caregiverCountryCode = _countryCodeFor(caregiverPhoneCtrl.text);
     caregiverPhoneCtrl.text =
         _nationalNumber(caregiverPhoneCtrl.text, caregiverCountryCode);
     String doctorCountryCode = _countryCodeFor(doctorPhoneCtrl.text);
     doctorPhoneCtrl.text = _nationalNumber(doctorPhoneCtrl.text, doctorCountryCode);
 
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(
@@ -357,48 +569,88 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ActionChip(
                     avatar: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Add custom condition'),
-                    onPressed: () async {
-                      final customCtrl = TextEditingController();
-                      final condition = await showDialog<String>(
-                        context: ctx,
-                        builder: (dialogContext) => AlertDialog(
-                          title: const Text('Custom condition'),
-                          content: TextField(
-                            controller: customCtrl,
+                    onPressed: () =>
+                        setDlgState(() => showCustomConditionInput = true),
+                  ),
+                  if (showCustomConditionInput) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: customConditionCtrl,
                             autofocus: true,
                             textCapitalization: TextCapitalization.words,
                             decoration: const InputDecoration(
                               labelText: 'Condition name',
                               hintText: 'e.g. Psoriasis',
+                              isDense: true,
                             ),
-                            onSubmitted: (value) =>
-                                Navigator.pop(dialogContext, value.trim()),
+                            onSubmitted: (value) {
+                              final condition = value.trim();
+                              if (condition.isEmpty) return;
+                              setDlgState(() {
+                                if (!localConditions.any(
+                                  (item) => item.toLowerCase() == condition.toLowerCase(),
+                                )) {
+                                  localConditions.add(condition);
+                                }
+                              });
+                              // Keep the focused field mounted during submission.
+                              // Removing an autofocus TextField here can leave Flutter
+                              // with stale inherited-widget dependents.
+                              customConditionCtrl.clear();
+                            },
                           ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(dialogContext),
-                              child: const Text('Cancel'),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(
-                                dialogContext,
-                                customCtrl.text.trim(),
-                              ),
-                              child: const Text('Add'),
-                            ),
-                          ],
                         ),
-                      );
-                      customCtrl.dispose();
-                      if (condition != null &&
-                          condition.isNotEmpty &&
-                          !localConditions.any(
-                            (item) => item.toLowerCase() == condition.toLowerCase(),
-                          )) {
-                        setDlgState(() => localConditions.add(condition));
-                      }
-                    },
-                  ),
+                        IconButton(
+                          tooltip: 'Add condition',
+                          icon: const Icon(Icons.check_rounded),
+                          color: AppColors.primary,
+                          onPressed: () {
+                            final condition = customConditionCtrl.text.trim();
+                            if (condition.isEmpty) return;
+                            setDlgState(() {
+                              if (!localConditions.any(
+                                (item) => item.toLowerCase() == condition.toLowerCase(),
+                              )) {
+                                localConditions.add(condition);
+                              }
+                            });
+                            customConditionCtrl.clear();
+                          },
+                        ),
+                        IconButton(
+                          tooltip: 'Cancel',
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => setDlgState(() {
+                            customConditionCtrl.clear();
+                            showCustomConditionInput = false;
+                          }),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (localConditions.any(
+                    (condition) => !_conditionOptions.contains(condition),
+                  )) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: localConditions
+                          .where((condition) => !_conditionOptions.contains(condition))
+                          .map(
+                            (condition) => InputChip(
+                              label: Text(condition),
+                              onDeleted: () => setDlgState(
+                                () => localConditions.remove(condition),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   const Divider(),
 
@@ -424,14 +676,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      DropdownButton<String>(
+                      _countryCodePicker(
                         value: doctorCountryCode,
-                        items: _countryCodes.entries
-                            .map((entry) => DropdownMenuItem(
-                                  value: entry.value,
-                                  child: Text('${entry.value} ${entry.key}'),
-                                ))
-                            .toList(),
                         onChanged: (value) =>
                             setDlgState(() => doctorCountryCode = value!),
                       ),
@@ -468,14 +714,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      DropdownButton<String>(
+                      _countryCodePicker(
                         value: caregiverCountryCode,
-                        items: _countryCodes.entries
-                            .map((entry) => DropdownMenuItem(
-                                  value: entry.value,
-                                  child: Text('${entry.value} ${entry.key}'),
-                                ))
-                            .toList(),
                         onChanged: (value) =>
                             setDlgState(() => caregiverCountryCode = value!),
                       ),
@@ -535,27 +775,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   createdAt: current?.createdAt ?? DateTime.now().toIso8601String(),
                 );
 
-                _bloodGroup = localBloodGroup ?? '';
-                _maritalStatus = localMarital ?? '';
-                _height = heightCtrl.text.trim();
-                _weight = weightCtrl.text.trim();
-                _occupation = localOccupation ?? '';
-                _conditions = localConditions;
-                _doctorName = doctorCtrl.text.trim();
-                _doctorSpecialization = localSpecialization ?? '';
-                _doctorPhone = doctorPhoneCtrl.text.trim().isEmpty
+                final pendingCondition = customConditionCtrl.text.trim();
+                if (pendingCondition.isNotEmpty &&
+                    !localConditions.any(
+                      (item) => item.toLowerCase() == pendingCondition.toLowerCase(),
+                    )) {
+                  localConditions.add(pendingCondition);
+                }
+
+                final savedBloodGroup = localBloodGroup ?? '';
+                final savedMaritalStatus = localMarital ?? '';
+                final savedHeight = heightCtrl.text.trim();
+                final savedWeight = weightCtrl.text.trim();
+                final savedOccupation = localOccupation ?? '';
+                final savedConditions = List<String>.from(localConditions);
+                final savedDoctorName = doctorCtrl.text.trim();
+                final savedSpecialization = localSpecialization ?? '';
+                final savedDoctorPhone = doctorPhoneCtrl.text.trim().isEmpty
                     ? ''
                     : '$doctorCountryCode ${doctorPhoneCtrl.text.trim()}';
-                _allergies = allergiesCtrl.text.trim();
-                _insuranceProvider = insuranceCtrl.text.trim();
-                _emergencyContact = caregiverPhoneCtrl.text.trim().isEmpty
+                final savedAllergies = allergiesCtrl.text.trim();
+                final savedInsuranceProvider = insuranceCtrl.text.trim();
+                final savedEmergencyContact = caregiverPhoneCtrl.text.trim().isEmpty
                     ? ''
                     : '$caregiverCountryCode ${caregiverPhoneCtrl.text.trim()}';
 
+                // The controller refresh notifies ProfileScreen listeners. Close the
+                // dialog before that rebuild so its inherited widgets are not removed
+                // while the dialog still depends on them.
+                Navigator.of(ctx).pop();
+                if (!mounted) return;
+
+                setState(() {
+                  _bloodGroup = savedBloodGroup;
+                  _maritalStatus = savedMaritalStatus;
+                  _height = savedHeight;
+                  _weight = savedWeight;
+                  _occupation = savedOccupation;
+                  _conditions = savedConditions;
+                  _doctorName = savedDoctorName;
+                  _doctorSpecialization = savedSpecialization;
+                  _doctorPhone = savedDoctorPhone;
+                  _allergies = savedAllergies;
+                  _insuranceProvider = savedInsuranceProvider;
+                  _emergencyContact = savedEmergencyContact;
+                });
                 await _savePrefs();
                 await _controller.updateUserProfile(updated);
 
-                if (ctx.mounted) Navigator.pop(ctx);
+                if (!mounted) return;
                 if (mounted) {
                   setState(() {});
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -571,7 +839,152 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
+    ).whenComplete(() {
+      // showDialog's future resolves as soon as Navigator.pop() runs, which is
+      // before the dialog's exit transition finishes playing. Disposing these
+      // controllers immediately can race with that still-animating subtree
+      // (especially since Save also triggers a controller-wide notifyListeners
+      // rebuild in the same frame), throwing "TextEditingController used after
+      // being disposed". Wait out the transition first.
+      Future.delayed(const Duration(milliseconds: 300), () {
+        nameCtrl.dispose();
+        ageCtrl.dispose();
+        caregiverPhoneCtrl.dispose();
+        caregiverEmailCtrl.dispose();
+        allergiesCtrl.dispose();
+        doctorCtrl.dispose();
+        doctorPhoneCtrl.dispose();
+        heightCtrl.dispose();
+        weightCtrl.dispose();
+        insuranceCtrl.dispose();
+        customConditionCtrl.dispose();
+      });
+    });
+  }
+
+  /// Ensures a caregiver email address and Gmail credentials are both set
+  /// before an "Email Daily/Weekly Report" toggle is allowed to turn on.
+  Future<bool> _requireCaregiverEmailReady() async {
+    final caregiverEmail = _controller.user?.caregiverEmail?.trim() ?? '';
+    if (caregiverEmail.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Add a caregiver email in your profile first.')),
+        );
+      }
+      return false;
+    }
+    return true;
+  }
+
+  void _showConfigureCaregiverEmailDialog() async {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('DoseCare Email Reports'),
+        content: const Text(
+          'The sender is securely managed by DoseCare through Firebase. '
+          'Add the caregiver email in Edit Profile, sign in with Google, '
+          'and turn on the report toggle. No Gmail password is required.',
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
     );
+    return;
+
+    // Kept below temporarily for source compatibility with older installs.
+    final existingAddress = await _controller.getCaregiverEmailSenderAddress();
+    if (!mounted) return;
+    final addressCtrl = TextEditingController(text: existingAddress ?? '');
+    final passwordCtrl = TextEditingController();
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.mail_outline_rounded, color: AppColors.primary),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Configure Caregiver Email', overflow: TextOverflow.ellipsis)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'DoseCare sends the PDF reports through your own Gmail account, branded as "DoseCare" in the sender name. '
+                'Use a Google App Password, not your regular Gmail password — generate one at myaccount.google.com/apppasswords '
+                '(requires 2-Step Verification to be enabled).',
+                style: AppTypography.bodySm(color: AppColors.onSurfaceVariant),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: addressCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Your Gmail address', hintText: 'you@gmail.com', isDense: true),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: passwordCtrl,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: 'Google App Password',
+                  hintText: existingAddress != null && existingAddress.isNotEmpty ? 'Leave blank to keep the saved password' : '16-character app password',
+                  isDense: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            onPressed: () async {
+              final address = addressCtrl.text.trim();
+              final password = passwordCtrl.text.trim();
+              if (address.isEmpty) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Enter a Gmail address.')),
+                );
+                return;
+              }
+              if (password.isEmpty && (existingAddress == null || existingAddress.isEmpty)) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Enter your Google App Password.')),
+                );
+                return;
+              }
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.of(ctx).pop();
+              if (password.isNotEmpty) {
+                await _controller.saveCaregiverEmailCredentials(address, password);
+              } else {
+                await _controller.saveCaregiverEmailAddressOnly(address);
+              }
+              if (mounted) {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('✓ Caregiver email settings saved'), backgroundColor: AppColors.primary),
+                );
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ).whenComplete(() {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        addressCtrl.dispose();
+        passwordCtrl.dispose();
+      });
+    });
   }
 
   /// Helper for section headers inside the edit dialog.
@@ -1063,7 +1476,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 18),
 
-            // 2. Health & Adherence Overview (3 Cards)
+            const SizedBox(height: 16),
+
+            // 2. Google authentication
+            _googleAccountCard(),
+
+            const SizedBox(height: 24),
+
+            // 3. Health & Adherence Overview (3 Cards)
             Row(
               children: [
                 Expanded(
@@ -1122,48 +1542,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
             const SizedBox(height: 20),
-
-            // 3. AI Assistant Quick Access
-            InkWell(
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const AssistantScreen()),
-                );
-              },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.primaryContainer, AppColors.secondary],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 28),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'AI Medication Assistant',
-                            style: AppTypography.headlineSm(color: Colors.white).copyWith(fontSize: 16),
-                          ),
-                          Text(
-                            'Ask clinical questions, dose schedules, and refill warnings',
-                            style: AppTypography.bodySm(color: Colors.white.withValues(alpha: 0.9)),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right_rounded, color: Colors.white),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
 
             // 4. Sound & Snooze Preferences
             Row(
@@ -1296,7 +1674,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 10),
             _buildToggleTile(
               'Share with Caregiver',
-              'SMS the saved caregiver 15 minutes after an unrecorded dose',
+              defaultTargetPlatform == TargetPlatform.android
+                  ? 'SMS the saved caregiver 15 minutes after an unrecorded dose'
+                  : 'Automatic SMS alerts are only available on Android.',
               _caregiverSync,
               (v) async {
                 final caregiverPhone = _controller.user?.caregiverPhone?.trim() ?? '';
@@ -1318,10 +1698,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 await _savePrefs();
                 await _controller.resyncCaregiverAlerts();
               },
+              enabled: defaultTargetPlatform == TargetPlatform.android,
             ),
             _buildToggleTile(
               'Daily report at 11 PM',
-              'SMS a daily medication summary to the saved caregiver',
+              defaultTargetPlatform == TargetPlatform.android
+                  ? 'SMS a daily medication summary to the saved caregiver'
+                  : 'Automatic SMS alerts are only available on Android.',
               _dailyCaregiverReport,
               (v) async {
                 final caregiverPhone = _controller.user?.caregiverPhone?.trim() ?? '';
@@ -1343,28 +1726,104 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 await _savePrefs();
                 await _controller.resyncCaregiverAlerts();
               },
+              enabled: defaultTargetPlatform == TargetPlatform.android,
+            ),
+            GestureDetector(
+              onTap: defaultTargetPlatform == TargetPlatform.android ? _showConfigureCaregiverEmailDialog : null,
+              child: Opacity(
+                opacity: defaultTargetPlatform == TargetPlatform.android ? 1.0 : 0.55,
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceContainerLowest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.mail_outline_rounded, size: 20, color: AppColors.primary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Configure Caregiver Email', style: AppTypography.labelMd(color: AppColors.onSurface).copyWith(fontWeight: FontWeight.w600)),
+                            Text(
+                              defaultTargetPlatform == TargetPlatform.android
+                                  ? 'Set the Gmail address DoseCare sends reports from'
+                                  : 'Only available on Android.',
+                              style: AppTypography.bodySm(color: AppColors.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.onSurfaceVariant),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            _buildToggleTile(
+              'Email Daily Report',
+              defaultTargetPlatform == TargetPlatform.android
+                  ? 'PDF adherence report emailed to the caregiver nightly around 11:30 PM'
+                  : 'Automatic email reports are only available on Android.',
+              _emailDailyReport,
+              (v) async {
+                if (v && !await _requireCaregiverEmailReady()) return;
+                setState(() => _emailDailyReport = v);
+                await _savePrefs();
+                await _controller.resyncEmailReports();
+              },
+              enabled: defaultTargetPlatform == TargetPlatform.android,
+            ),
+            _buildToggleTile(
+              'Email Weekly Report',
+              defaultTargetPlatform == TargetPlatform.android
+                  ? 'PDF adherence report emailed to the caregiver Sunday nights'
+                  : 'Automatic email reports are only available on Android.',
+              _emailWeeklyReport,
+              (v) async {
+                if (v && !await _requireCaregiverEmailReady()) return;
+                setState(() => _emailWeeklyReport = v);
+                await _savePrefs();
+                await _controller.resyncEmailReports();
+              },
+              enabled: defaultTargetPlatform == TargetPlatform.android,
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CaregiverAlertsHistoryScreen()),
+                );
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.history_rounded, size: 20, color: AppColors.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Caregiver Alert History', style: AppTypography.labelMd(color: AppColors.onSurface).copyWith(fontWeight: FontWeight.w600)),
+                          Text('See every alert sent and mark it acknowledged', style: AppTypography.bodySm(color: AppColors.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.onSurfaceVariant),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 20),
 
-            // 6. Privacy & Protection
-            Row(
-              children: [
-                const Icon(Icons.security_rounded, color: AppColors.primary, size: 20),
-                const SizedBox(width: 8),
-                Text('Privacy & Protection', style: AppTypography.headlineSm(color: AppColors.onSurface).copyWith(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 10),
-            _buildToggleTile(
-              'App Lock',
-              'Enable a device-level lock before storing a PIN',
-              _appLockEnabled,
-              (v) async {
-                setState(() => _appLockEnabled = v);
-                await _savePrefs();
-              },
-            ),
-            const SizedBox(height: 24),
 
             // 7. Data Management
             Row(
@@ -1521,7 +1980,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'DoseCare — AI Assisted Medication Management',
+                          'DoseCare — Medication Management',
                           style: AppTypography.labelMd(color: AppColors.primary).copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 3),
@@ -1549,6 +2008,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ValueChanged<bool> onChanged, {
     IconData? icon,
     Color? iconColor,
+    bool enabled = true,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1557,28 +2017,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        children: [
-          if (icon != null) ...[ 
-            Icon(icon, size: 20, color: iconColor ?? AppColors.primary),
-            const SizedBox(width: 10),
-          ],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: AppTypography.labelMd(color: AppColors.onSurface).copyWith(fontWeight: FontWeight.w600)),
-                Text(subtitle, style: AppTypography.bodySm(color: AppColors.onSurfaceVariant)),
-              ],
+      child: Opacity(
+        opacity: enabled ? 1.0 : 0.55,
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 20, color: iconColor ?? AppColors.primary),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: AppTypography.labelMd(color: AppColors.onSurface).copyWith(fontWeight: FontWeight.w600)),
+                  Text(subtitle, style: AppTypography.bodySm(color: AppColors.onSurfaceVariant)),
+                ],
+              ),
             ),
-          ),
-          Switch(
-            value: value,
-            activeTrackColor: AppColors.primary,
-            activeThumbColor: Colors.white,
-            onChanged: onChanged,
-          ),
-        ],
+            Switch(
+              value: enabled ? value : false,
+              activeTrackColor: AppColors.primary,
+              activeThumbColor: Colors.white,
+              onChanged: enabled ? onChanged : null,
+            ),
+          ],
+        ),
       ),
     );
   }
