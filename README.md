@@ -99,11 +99,12 @@ As the project grew, its architecture matured through distinct engineering phase
 
 - 🕒 **Today's Dose Timeline**: Divided into Morning, Afternoon, Evening, and Night with instant status indicators (Pending, Taken, Skipped, Snoozed, Missed).
 - 📦 **Smart Medicine Cabinet**: Tracks remaining tablet counts, bottle levels, expiration dates, and low-stock alerts.
+- 🔑 **Google Sign-In & Firebase Auth**: Secure 1-click Google account authentication across Android & iOS.
+- 📧 **Automated Caregiver Email Reports**: Direct transactional email delivery via Brevo REST API, sending automated daily & weekly PDF adherence summaries.
+- 📋 **Clinical PDF Export**: Generate official PDF adherence reports to show doctors during checkups.
 - ⏰ **Precise Local Alarms**: Notification actions let users log doses or snooze directly from the lock screen without opening the app.
 - 💊 **Built-in Drug Interaction Radar**: Real-time cross-checks for high-risk drug combinations and food interactions.
-- 📋 **Prescription Vault**: Save photos of physical prescriptions, doctor notes, and clinic contact information.
-- 📊 **Adherence & Compliance Insights**: Visual adherence percentages, trend lines, and missed-dose analysis for doctor appointments.
-- 🔒 **100% Offline-First & Private**: No cloud tracking, no mandatory accounts, and zero telemetry. All health data remains strictly on your device.
+- 🔒 **Privacy-First & Secure**: Local database persistence with optional encrypted cloud backup and zero third-party telemetry.
 
 ---
 
